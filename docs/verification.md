@@ -8,6 +8,26 @@ Verification has three separate purposes: understand RTF rules, preserve renderi
 
 The ordinary-table slice adds 11 parser tests over row assembly, padding and border resolution and malformed row definitions; 8 geometry tests over column sums, non-overlap, padding, row heights, border rectangles and cross-page continuation; 7 corpus-manifest tests; and 2 browser cases. The synthetic table fixture asserts identical coordinates in all three engines because its exact line spacing makes every position independent of the font.
 
+Parse latency and peak live allocation were measured with `pnpm bench:parser` on this Linux
+container, release build, median of five parses per shape:
+
+| Shape                     | Input KiB | Blocks | Median ms | Peak KiB |
+| ------------------------- | --------: | -----: | --------: | -------: |
+| prose, 12000 paragraphs   |      1594 |  12000 |      23.5 |     7609 |
+| tables, 5000 rows         |      1300 |   5000 |      15.2 |    18455 |
+| list, 20000 items         |       985 |  20002 |      20.6 |    13358 |
+| unicode, 12000 paragraphs |       352 |  12000 |      10.0 |     6686 |
+
+The budgets are 300 ms and 48 MiB per shape, roughly fifteen times the observed latency and two
+and a half times the observed peak, so a real regression trips them and machine noise does not.
+These are parser numbers on one machine; they are a regression baseline, not a promise about any
+other hardware. Layout and paint latency remain unmeasured.
+
+The seeded mutation campaign found a real panic the first time it ran: an empty `\leveltext`
+group sliced a zero-length vector from index one, reachable from any document. It is fixed, and
+its minimized input is retained in `fuzz/regressions/` and replayed by the fast gate. A
+demonstrated libFuzzer run then managed 196,354 executions in 61 seconds with no further crash.
+
 Negative probes confirmed that focused Playwright/Vitest tests, floating Promises, and Node globals in browser library code are rejected. Actionlint passes. The formatting-only commit preserved canonical emitted JavaScript for all 22 affected TypeScript files.
 
 The shared registry consumer was exercised against the existing 1.0.3 package: its downloaded SHA-256 matched `6d1804cdd3735744efa8c7857cc7ccf1bc10e42cf7f59aa258ddff45f4f7dd9b`, npm signature/provenance verification passed, and declaration compilation plus production rendering passed. Each subsequent release records its own registry outcome in `registry-verification.json`; this prototype does not claim a future package has already passed.

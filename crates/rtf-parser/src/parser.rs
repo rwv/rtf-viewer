@@ -1980,11 +1980,11 @@ impl<'a> Parser<'a> {
             let chars: Vec<char> = buffer.chars().collect();
             if let Some((_, level)) = self.level_builder.as_mut() {
                 if self.state.destination == Destination::ListLevelText {
-                    // \\leveltext is length prefixed; a writer that omits the prefix yields nothing.
+                    // \\leveltext is length prefixed; an empty or short group yields nothing.
                     let take = chars.first().map_or(0, |first| {
                         (*first as usize).min(chars.len().saturating_sub(1))
                     });
-                    level.template = chars[1..1 + take].to_vec();
+                    level.template = chars.get(1..1 + take).unwrap_or_default().to_vec();
                 } else {
                     // \\levelnumbers is not length prefixed: its bytes are the one-based offsets
                     // into the template, terminated by the group's literal semicolon.

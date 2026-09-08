@@ -23,4 +23,6 @@ Dependabot groups minor/patch updates and leaves major upgrades separate. Update
 
 Adding a real producer document means adding its provenance, its independent references and its measured differences to `fixtures/corpus.json`; `pnpm check:corpus` fails on a document nobody described. See [corpus](docs/corpus.md).
 
+`pnpm bench:parser` and `pnpm fuzz:parser` are deliberately outside `pnpm check`: the first is a measurement whose numbers belong in a report, the second is open ended. Run the fuzzer when you change the tokenizer or a table or list resolver, and put any crash it finds into `fuzz/regressions/` in minimized form.
+
 See [AGENTS.md](AGENTS.md) for architecture constraints, [testing](docs/testing.md) for evidence standards, and [releasing](docs/releasing.md) for publication and recovery. Real producer corpus expansion and long-running fuzz/performance campaigns are separate work from the per-PR gate.
