@@ -16,7 +16,7 @@ Environment: 7 September 2026, Linux x86-64; Node 24.13.0; pnpm 10.33.0; Rust 1.
 | `pnpm test:browser` | 14 production Chromium tests passed |
 | `pnpm test:package` | Fresh tarball install, public declaration check, Vite build and browser engine probe passed |
 
-The final combined run is `pnpm check`. This local evidence does not claim a remotely executed CI run. The checked-in GitHub Actions workflow repeats the gates from a clean checkout.
+The final combined run is `pnpm check`. This local evidence does not claim a remotely executed CI run. The checked-in GitHub Actions workflow repeats the gates from a clean checkout. A separate local clone of implementation commit `65f1709` also passed `pnpm install --frozen-lockfile`, `pnpm build` and `pnpm typecheck` with no generated assets carried over; its WASM was rebuilt from source.
 
 ## Behavioral evidence
 
@@ -32,7 +32,7 @@ The final combined run is `pnpm check`. This local evidence does not claim a rem
 
 `artifacts/rtf-viewer-0.1.0.tgz` contains ESM JavaScript, public declarations, generated contract declarations, parser Worker, wasm-bindgen glue and a real `.wasm` file. A temporary application outside the workspace installs only this archive and its own Vite/TypeScript dependencies. It builds and renders two pages, checks line continuation, creates/closes a bitmap and tests borrowed viewer ownership. No repository source, Rust toolchain, submodule or development symlink is used by that consumer.
 
-The final verified consumer build contains 22,042 bytes application JS, 2,664 bytes Worker and 307,818 bytes WASM (raw sizes). The packed library archive is 221,415 bytes. `artifacts/package-verification.json` records the exact filenames, sizes and successful behavioral result. The application JS includes the consumer probe and viewer import; these are measurements of this build, not universal bundle-size promises.
+The final verified consumer build contains 22,042 bytes application JS, 2,664 bytes Worker and 307,941 bytes WASM (raw sizes). The packed library archive is 221,430 bytes. `artifacts/package-verification.json` records the exact filenames, sizes and successful behavioral result. The application JS includes the consumer probe and viewer import; these are measurements of this build, not universal bundle-size promises.
 
 The final `pnpm check` completed with exit code 0: 29 native tests, 19 Vitest tests, 14 production browser tests and the separate packed-consumer integration. The full local output is retained in ignored `artifacts/final-verification.log`.
 
