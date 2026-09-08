@@ -1,6 +1,6 @@
 # Architecture
 
-Status: approved implementation plan for the initial M0–M2 delivery; verification status lives in the support matrix. Public examples remain proposals until the complete build and browser checks pass.
+Status: implemented initial M0–M2 rendering path, with partial format coverage listed in the support matrix. Future sections in this document are labeled M3 or later.
 
 ## Boundaries and flow
 
@@ -22,7 +22,7 @@ flowchart LR
 
 One Cargo workspace contains `crates/rtf-parser`. One pnpm workspace contains `packages/rtf-viewer` and `examples/viewer`. A source reference or experiment is not a workspace dependency. No general OOXML platform is introduced.
 
-Rust exports a bounded byte-to-model function through wasm-bindgen. The parser scans control tokens without first decoding the whole document. It clones scoped state on `{`, restores on `}`, consumes `bin` payloads by byte count, and distinguishes destinations from formatting. Text byte runs are decoded only after resolving the active document/font codepage. Escaped bytes remain contiguous for multibyte decoding. Unicode fallback skipping counts RTF tokens as required by pp. 14–15, including one entire binary token, and terminates at braces. UTF-16 surrogate pairs are combined. Unknown ignorable destinations are skipped as groups, with diagnostics.
+Rust exports a bounded byte-to-model function through wasm-bindgen. Lexical scanning and scoped interpretation are methods in one parser module, not separate packages. The WASM boundary returns serde JSON, which the Worker parses into the generated TypeScript model; this intentionally preserves null/array semantics at the cost of an intermediate string. The parser scans control tokens without first decoding the whole document. It clones scoped state on `{`, restores on `}`, consumes `bin` payloads by byte count, and distinguishes destinations from formatting. Text byte runs are decoded only after resolving the active document/font codepage. Escaped bytes remain contiguous for multibyte decoding. Unicode fallback skipping counts RTF tokens as required by pp. 14–15, including one entire binary token, and terminates at braces. UTF-16 surrogate pairs are combined. Unknown ignorable destinations are skipped as groups, with diagnostics.
 
 Rust resolves character and paragraph defaults and direct formatting. `plain` resets character properties without resetting paragraph properties; `pard` resets paragraph properties without resetting character properties. Named stylesheet inheritance is a separate future feature and is diagnosed rather than invented. Default paper is 612 × 792 pt with 90 pt left/right and 72 pt top/bottom margins (spec p. 49).
 
@@ -42,7 +42,7 @@ Measurement uses Canvas 2D at one logical point per canvas unit, with CSS font s
 
 Line breaking preserves grapheme clusters, permits ordinary word boundaries and common CJK boundaries, and records line geometry once. Full Unicode bidi, Arabic shaping across style runs, dictionary breaking and complete East Asian typography remain separate fidelity work. Diagnostics disclose such limits. The initial common-Latin/CJK behavior is tested with known fonts.
 
-A font-loading event marks a loaded document's layout stale. `relayout()` rebuilds geometry explicitly and increments a revision; rendering rejects stale layout until refreshed. Caller changes to system fonts or mappings require explicit relayout because browser notifications cannot cover every source. Relayout is transactional: old geometry remains until successful replacement, and destroy/abort discard late results.
+A font epoch is tracked from resource construction, before measurement starts. A font-loading event marks a loaded document's layout stale. `relayout()` rebuilds geometry explicitly and increments a revision; rendering rejects stale layout until refreshed. Caller changes to system fonts or mappings require explicit relayout because browser notifications cannot cover every source. Relayout is transactional: old geometry remains until successful replacement, and destroy/abort discard late results. If the epoch changes during layout, that attempt rejects; it cannot publish mixed font metrics.
 
 ## Pagination
 
@@ -50,7 +50,7 @@ Twips convert to points at the semantic boundary (20 twips = 1 pt); half-points 
 
 M3 adds actual row/cell semantics, measured table fragments and row continuation policies. It must not flatten tables and call the result table support. Repeating headers, merges, nested tables and oversized rows require separate acceptance fixtures. Future section/header/footer layout needs additional stories and per-section page settings, not paint-time special cases.
 
-## API and ownership (planned)
+## API and ownership (implemented)
 
 - `RtfDocument.load(Blob | ArrayBuffer | Uint8Array, options)` copies caller byte buffers and resolves after complete pagination. URL strings are intentionally excluded initially; callers can fetch under their own network policy.
 - `pageCount`, `getPageSize(index)`, `getPageLayout(index)` and `diagnostics` expose immutable metadata; indexes are zero-based. `renderPage(canvas, index, options)` paints into a caller-owned HTMLCanvasElement or OffscreenCanvas. `renderPageToBitmap(index, options)` returns a caller-owned bitmap.
@@ -63,14 +63,14 @@ M3 adds actual row/cell semantics, measured table fragments and row continuation
 
 ## Resource policy
 
-Initial hard defaults: 16 MiB input, 256 nesting depth, 2 million tokens, 2 million decoded text units, 100,000 paragraphs, 256 embedded images, 8 MiB per image, 32 million decoded image pixels in total, 2,000 pages, and 32 million pixels per output canvas. Reject nonfinite/invalid geometry and output parameters. Diagnostics are deduplicated and bounded. These are engineering limits, not RTF specification maxima.
+Initial hard defaults: 16 MiB input, 256 nesting depth, 2 million tokens, 2 million decoded text units, 100,000 paragraphs, 256 embedded images, 8 MiB per image, 32 million decoded image pixels in total, 2,000 pages, and 32 million pixels per output canvas. Additional bounds are 16,384 graphemes per unbroken token, 2,048 pt font size/baseline magnitude and 14,400 pt paper/image dimensions. Each output axis is at most 32,767 pixels. Reject nonfinite/invalid geometry and output parameters. Diagnostics are deduplicated and bounded. These are engineering limits, not RTF specification maxima.
 
 Layout yields periodically so AbortSignal and UI events can run. Image decode promises are not intrinsically abortable; late decoded resources are always closed. Worker parsing timeout and byte bounds prevent a corrupt file from pinning the main thread. OLE and external-field content is never executed or fetched.
 
 ## Decisions and assumptions
 
-Use wasm-bindgen `--target web`, ESM assets, native module Workers, generated TS contracts and a Vite example. Prefer a narrow tested source extraction over a whole DOCX graph if no public reusable API exists; final evidence belongs in reuse-evaluation.md. No submodule is required for ordinary package consumers.
+Use wasm-bindgen `--target web`, ESM assets, native module Workers, generated TS contracts and a Vite example. The installed-package experiment selected a narrow tested PNG/JPEG dimension-sniffer extraction. DOCX layout and the rtf.js top-level graph were rejected for runtime reuse; evidence is in reuse-evaluation.md. No submodule is required for ordinary package consumers.
 
-Unverified assumptions to test: browser font metrics across engines; bundler rewriting of Worker/WASM URLs from an installed tarball; realistic CJK font availability; independent pagination against desktop producers; vector metafile subset fidelity; acceptable main-thread layout latency at configured limits. Common system font names alone cannot guarantee cross-platform pixel equality.
+Verified in Chromium/Vite: installed-tarball Worker/WASM rewriting, common CJK display with explicit local fonts, and page/text geometry against one independently exported LibreOffice sample. Unverified assumptions: font metrics across Firefox/WebKit; other bundlers; realistic broad CJK/complex-script coverage; Word/TextEdit output; vector metafile fidelity; layout latency at configured upper limits. Common system font names alone cannot guarantee cross-platform pixel equality.
 
 Official tooling sources checked during design: [pnpm workspace](https://pnpm.io/workspaces), [wasm-bindgen deployment](https://wasm-bindgen.github.io/wasm-bindgen/reference/deployment.html), [ts-rs](https://docs.rs/ts-rs/latest/ts_rs/), [Vite guide](https://vite.dev/guide/), [Worker termination](https://developer.mozilla.org/en-US/docs/Web/API/Worker/terminate), [font loading](https://developer.mozilla.org/en-US/docs/Web/API/FontFaceSet/load).

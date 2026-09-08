@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Open and inspect a paginated RTF document in your browser." />
+    <title>Folio — RTF viewer</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="masthead">
+        <a class="brand" href="/" aria-label="Folio RTF viewer home">
+          <span class="brand-mark" aria-hidden="true">F</span>
+          <span><strong>Folio</strong><small>RTF viewer</small></span>
+        </a>
+
+        <div class="file-actions" aria-label="Document controls">
+          <label class="button button-primary" for="file-input">Open RTF</label>
+          <input id="file-input" type="file" accept=".rtf,text/rtf,application/rtf" />
+          <button class="button button-quiet" id="sample-button" type="button">Open sample</button>
+        </div>
+
+        <p class="file-name" id="file-name" title="Current document">No document</p>
+      </header>
+
+      <main class="workspace">
+        <section class="viewer-panel" aria-labelledby="document-heading">
+          <div class="toolbar">
+            <div class="page-controls" aria-label="Page navigation">
+              <button class="icon-button" id="previous-page" type="button" aria-label="Previous page">←</button>
+              <output class="page-indicator" id="page-indicator" aria-live="polite">— / —</output>
+              <button class="icon-button" id="next-page" type="button" aria-label="Next page">→</button>
+            </div>
+
+            <h1 id="document-heading">Document proof</h1>
+
+            <div class="view-actions">
+              <div class="zoom-controls" aria-label="Zoom controls">
+                <button class="icon-button" id="zoom-out" type="button" aria-label="Zoom out">−</button>
+                <output id="zoom-value" aria-live="polite">100%</output>
+                <button class="icon-button" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+              </div>
+              <button class="button button-export" id="download-png" type="button">Save PNG</button>
+            </div>
+          </div>
+
+          <div class="document-stage" id="document-stage">
+            <div class="folio-index" aria-hidden="true">
+              <span>Sheet</span>
+              <strong id="sheet-number">—</strong>
+            </div>
+            <div class="paper-wrap" id="paper-wrap">
+              <span class="crop-mark crop-mark-nw" aria-hidden="true"></span>
+              <span class="crop-mark crop-mark-se" aria-hidden="true"></span>
+              <canvas id="document-canvas" aria-label="Rendered RTF page"></canvas>
+            </div>
+            <div class="empty-state" id="empty-state" hidden>
+              <strong>There is no page to show.</strong>
+              <span>Open an RTF file to begin.</span>
+            </div>
+          </div>
+        </section>
+
+        <aside class="inspector" aria-labelledby="inspector-heading">
+          <div class="inspector-heading-row">
+            <h2 id="inspector-heading">Document notes</h2>
+            <span class="diagnostic-count" id="diagnostic-count">0</span>
+          </div>
+          <p class="inspector-intro">Parsing and layout notices appear here. They do not change the source file.</p>
+          <ol class="diagnostic-list" id="diagnostic-list">
+            <li class="diagnostic-empty">No notices for this document.</li>
+          </ol>
+          <div class="paper-facts" aria-label="Page information">
+            <span>Paper</span><strong id="paper-size">—</strong>
+            <span>Page</span><strong id="page-fact">—</strong>
+          </div>
+        </aside>
+      </main>
+
+      <p class="status" id="status" role="status" aria-live="polite">Loading the sample…</p>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

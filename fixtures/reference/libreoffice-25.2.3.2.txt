@@ -1,0 +1,14 @@
+LibreOffice RTF
+Reference
+Plain text with bold, italic, and underlined
+words.
+          Indented paragraph marker with
+      enough words to expose paragraph
+      geometry and line wrapping.
+Unicode text: Hello, 中文, 你好世界.
+
+
+Continuation Marker
+This sentence follows the second heading.
+Final marker: LO-25.2.3.2.
+

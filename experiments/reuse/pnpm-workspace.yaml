@@ -1,0 +1,3 @@
+# Isolated probe; never joins the parent development workspace.
+packages:
+  - .

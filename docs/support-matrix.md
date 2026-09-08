@@ -1,31 +1,41 @@
 # RTF support matrix
 
-**Planned** means no completed implementation claim. **Partial** means only the stated subset works. **Verified** means a named automated test or independent evidence checks the stated behavior; it never means the entire specification feature is supported.
+**Verified** means the named evidence checks the stated subset, not the entire specification feature. **Partial** identifies known omissions. **Planned** has no current implementation claim. Native tests are in `crates/rtf-parser/tests/parser.rs`; geometry tests in `packages/rtf-viewer/src/layout.test.ts`; production browser tests in `tests/engine.spec.ts` and `tests/browser.spec.ts`.
 
-| Feature | RTF 1.9.1 reference | Status | Evidence / boundary |
+| Feature | RTF 1.9.1 reference | Status | Evidence and boundary |
 | --- | --- | --- | --- |
-| Groups, escapes, control parameters | pp. 7–10 | Planned | Native tokenizer/state tests required |
-| Binary payload boundaries | pp. 7–8, 14, 150 | Planned | Braces and slashes within bin data |
-| Ignorable unknown destinations | pp. 9–10 | Planned | Must skip whole scope; report loss |
-| Unicode u/uc, signed UTF-16 | pp. 14–16 | Planned | Fallback tokens, group boundaries, surrogate pairs |
-| ANSI/codepage/font charset | pp. 12–14, 17–20 | Planned | Common Windows and East Asian codepages first |
-| Font and color tables | pp. 17–22 | Planned | No automatic font downloads |
-| Direct character styles, plain | Character Text section | Planned | Bold/italic/underline/strike/color/size; stylesheets separate |
-| Paragraph properties, pard | pp. 78–86 | Planned | Alignment, indent, spacing, line breaks |
-| Physical paper and margins | p. 49 | Planned | Explicit and automatic pagination |
-| English and common Chinese | Unicode and font sections | Planned | Full bidi and East Asian rules excluded |
-| Canvas and ImageBitmap engine | Browser API | Planned | Pixel dimensions and lifecycle tests |
-| Local-file lightweight viewer | Application layer | Planned | Upload/navigation/zoom/export |
-| PNG/JPEG pictures | pp. 148–152 | Planned | Inline goal size; crop/float separate |
-| Stylesheet cascade | Style Sheet section | Planned | Diagnostics until implemented |
-| Lists and numbering | List Table / Paragraph Text | Planned M3 | Real numbering, overrides and restart |
-| Ordinary tables | Table Definitions | Planned M3 | Padding, borders and pagination required |
-| Merges, nested tables, oversized rows | Table Definitions | Planned M3/M4 | Separate fixtures and explicit policies |
-| Headers/footers/sections/fields/notes | Corresponding body sections | Planned M4 | Field results must not execute instructions |
-| WMF/EMF | pp. 148–152 | Planned | rtf.js and upstream source reuse evaluation |
-| Shapes, floats, text boxes | Drawing Objects | Planned | No silent flattening claim |
-| Bidi, complex-script/East Asian typography | Relevant language sections | Planned | Common CJK display is not full support |
-| OLE objects | Objects | Never executed | Future static fallback only |
-| Editing and round-trip | Outside read-only scope | Out of scope | No save API |
+| Groups, control parameters, delimiters, escaped text | pp. 7–10 | Verified subset | Scoped state restoration; bounded names/parameters; raw byte scanning |
+| Binary payload boundaries | pp. 7–8, 14, 150 | Verified | Braces/slashes remain opaque; truncated and negative lengths reject |
+| Ignorable unknown destinations | pp. 9–10 | Verified | Whole subtree skipped, including nested known destinations; loss diagnosed |
+| Unicode u/uc, signed UTF-16 and upr/ud | pp. 14–16 | Verified subset | Scope, control/binary fallback, surrogate pairs, Unicode alternate branch |
+| ANSI/codepage/font charset | pp. 12–14, 17–20 | Partial | Windows-125x, Shift-JIS, GBK, Big5, Korean and selected other encoding_rs mappings; raw/escaped Chinese and font overrides tested; unsupported mappings diagnose fallback |
+| Font table | pp. 17–20 | Partial | IDs, names, charsets/codepages; no embedded-font registration or full associated-script font slots |
+| Color table | pp. 20–22 | Verified subset | RGB, automatic colors, text/highlight lookup |
+| Direct character styles and plain | Character Text section | Verified subset | Font/size, bold, italic, underline, strike, color, highlight, hidden text; baseline shifts implemented; complex underline/symbol-font rules omitted |
+| Paragraph styles and pard | pp. 78–86 | Verified subset | Left/center/right/justify, physical/first-line indents, before/after spacing, exact/minimum/multiple line spacing |
+| Tabs and line breaks | Paragraph Text section | Partial | Default tab interval and forced breaks; custom stops, leaders, decimal alignment deferred |
+| Physical paper/margins and explicit pages | p. 49 | Verified subset | Point geometry; explicit blank pages; landscape default-paper handling; section overrides diagnosed |
+| Automatic pagination | Paragraph/Page Information | Verified subset | Exact-line fixture matches independent 15+9 reference; no widow/orphan or keep-with-next algorithm yet |
+| English and common Chinese | Unicode/font sections | Partial | Exact decoded text and fixed-font browser images checked; complete bidi, dictionary breaking and East Asian typography unverified |
+| Canvas and ImageBitmap engine | Browser API | Verified | Geometry independent of PPI/scale/DPR; true bitmap dimensions and caller disposal |
+| Worker/cancellation/destruction | Browser API | Verified subset | Worker termination, pre-abort, owned/borrowed viewer, canvas contention and late-resource cleanup tests |
+| Local-file viewer | Application | Verified | Upload, page navigation, zoom and downloaded PNG |
+| PNG/JPEG pictures | pp. 148–152 | Partial | Inline hex/binary payload, authored goal/scale, bounded decode and retained rectangles; crop/float/shape properties diagnosed |
+| Stylesheet cascade | Style Sheet | Planned | Definitions skipped with diagnostic; direct formatting retained |
+| Lists and numbering | List Table / Paragraph Text | Partial fallback only | Cached listtext/pntext retained; actual numbering/restarts/overrides planned M3 |
+| Ordinary tables | Table Definitions | Partial text fallback only | Reading-order separators retained with diagnostics; geometry, padding, borders and pagination planned M3 |
+| Merges, nested tables, oversized rows | Table Definitions | Planned M3/M4 | No layout support claim |
+| Sections, headers/footers, notes | Corresponding body sections | Planned M4 | Unsupported destinations/section geometry diagnosed; simple section break fallback only |
+| Fields | Fields | Partial fallback only | Static fldrslt text; instructions neither evaluated nor fetched |
+| WMF/EMF | pp. 148–152 | Partial recognition only | Bytes/type retained with placeholder and diagnostics; rtf.js runtime evaluated, drawing deferred |
+| Shapes, floats and text boxes | Drawing Objects | Planned | Unsupported controls/destinations diagnosed |
+| OLE objects | Objects | Never executed | Object destinations skipped; future static previews separate |
+| Editing/round-trip | Outside read-only scope | Out of scope | No save API |
 
-Update this table after checks pass, with test locations and producer report links. Unsupported control words and destinations must remain visible in document diagnostics.
+## Producer evidence
+
+Seven original CC0 synthetic fixtures isolate rules. One actual LibreOffice 25.2.3.2 export is accompanied by an independently generated PDF and PNG. The current engine matches its page size, page count, reading order and line breaks; small metric/rasterization differences are documented in [compatibility](compatibility.md). No Word or TextEdit output has been verified. Passing this fixture does not establish general office-document fidelity.
+
+## Known unsupported/failing classes
+
+Documents whose appearance depends on stylesheet inheritance, real table geometry, generated numbering, headers/footers, section-specific paper settings, WMF/EMF records or complex script layout will differ or show placeholders. These are explicit future milestones. Current supplied synthetic samples render without a known content loss; the real sample produces compatibility diagnostics. See [verification](verification.md) for actual test results and remaining evidence gaps.

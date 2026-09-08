@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Upstream reuse probe</title>
+  </head>
+  <body>
+    <main>
+      <h1>Upstream reuse probe</h1>
+      <p>Select local files; the experiment does not upload them.</p>
+      <label>DOCX <input id="docx" type="file" accept=".docx" /></label>
+      <label>WMF <input id="wmf" type="file" accept=".wmf" /></label>
+      <pre id="result">Waiting for input.</pre>
+      <section id="wmf-output"></section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

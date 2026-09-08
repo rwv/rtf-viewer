@@ -33,3 +33,11 @@ Fixed-font browser snapshots detect rendering regressions. They are not proof of
 ## Acceptance log
 
 The final implementation report must record actual commands, versions, pass/fail counts, asset sizes, independent comparison results and unresolved failures. CI runs the repeatable native, contract, TS, build, browser and packed-consumer gates from a clean checkout.
+
+## Current executable gates
+
+`pnpm check` runs native Rust tests, generated-contract drift verification, Vitest geometry/resource tests, library/example build, TypeScript checking, production Playwright tests and a newly installed tarball consumer. CI also checks Rust formatting and clippy. Browser integration invokes the real compiled Rust parser.
+
+The independent visual test compares the actual LibreOffice-generated reference PNG with engine ink using a documented four-pixel neighborhood at 96 PPI, paired with exact line text, page count, physical size and indent assertions. It is a tolerant regression check for one known producer document, not a general fidelity score. No project-generated image is used as its own correctness oracle.
+
+Use `pnpm generate:types` after model changes; `pnpm check:contract` must pass before committing. Test outputs, screenshots, packed archives and size measurements are written to ignored `artifacts/` or `test-results/`. Reference generation needs LibreOffice/Pillow/Poppler but ordinary CI consumes the committed licensed artifacts and does not require those tools.

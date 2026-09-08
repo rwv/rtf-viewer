@@ -1,0 +1,31 @@
+{
+  "name": "rtf-viewer-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "generate:types": "node scripts/generate-types.mjs",
+    "check:contract": "node scripts/generate-types.mjs --check",
+    "build:lib": "pnpm build:wasm && node scripts/build-lib.mjs && tsc -p packages/rtf-viewer/tsconfig.build.json",
+    "build": "pnpm build:lib && pnpm --filter @rtf-viewer/example build",
+    "dev": "pnpm build:lib && pnpm --filter @rtf-viewer/example dev --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:rust": "node scripts/cargo.mjs test --workspace",
+    "test:browser": "playwright test",
+    "test:package": "node scripts/test-package.mjs",
+    "check": "pnpm test:rust && pnpm check:contract && pnpm test && pnpm build && pnpm typecheck && pnpm test:browser && pnpm test:package"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.13.0",
+    "esbuild": "0.27.3",
+    "typescript": "6.0.2",
+    "vite": "8.2.2",
+    "vitest": "4.1.4"
+  }
+}
