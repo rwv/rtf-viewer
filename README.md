@@ -2,7 +2,7 @@
 
 A browser-only RTF document engine: original bytes → Rust/WASM parser → paginated layout → Canvas or ImageBitmap. Use the engine in your application or add the lightweight viewer. No framework, server conversion, or automatic font downloads are required.
 
-The 1.x release supports Unicode and common Windows/East Asian codepages, direct text formatting, paragraphs, real paper sizes, automatic pagination, and inline PNG/JPEG. The current source additionally fixes ISO-8859, EUC-JP, GB18030 and UTF-16 compatibility decoding; see [verification](https://github.com/rwv/rtf-viewer/blob/main/docs/verification.md) for release status. Tables and lists currently have text fallbacks; headers, footers, stylesheet inheritance, and WMF/EMF rendering remain incomplete. Check the [support matrix](https://github.com/rwv/rtf-viewer/blob/main/docs/support-matrix.md) for your document corpus.
+The 1.x release supports Unicode and common Windows/East Asian codepages, direct text formatting, paragraphs, real paper sizes, automatic pagination, and inline PNG/JPEG. Version 1.0.3 also fixes ISO-8859, EUC-JP, GB18030 and UTF-16 compatibility decoding, unrelated font invalidation, and integral raster dimensions. Tables and lists currently have text fallbacks; headers, footers, stylesheet inheritance, and WMF/EMF rendering remain incomplete. Check the [support matrix](https://github.com/rwv/rtf-viewer/blob/main/docs/support-matrix.md) for your document corpus.
 
 ## Install
 
