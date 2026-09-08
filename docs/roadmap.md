@@ -36,7 +36,7 @@ Editing, source-format saving and round-trip fidelity are outside the read-only 
 
 ## Next concrete work
 
-1. Issue #19 reliability baseline: coverage-guided parser fuzzing, large-document latency and memory measurement, and cancellation tests, kept separate from the fast per-PR gate.
+1. Measure layout and paint latency the way parse latency is now measured, and only then decide whether to move layout into a Worker. Issue #19's parser fuzzing and parse-latency baseline are delivered; its Word and TextEdit producer artifacts remain blocked on producer access.
 2. Vertically merged cells and nested tables, both of which need cell spans that a row-independent layout cannot express today. Horizontal merges, alignment and shading are done.
 3. Close the `lo-2427-line-height` corpus delta. The engine's line box is 0.65 pt shorter per row than the producer's for 10 pt Liberation Serif, which is a measurement question, not a table question, and it moves page breaks in long documents.
 4. Grow the producer corpus, prioritizing permission-cleared Word and TextEdit files and list/image cases. Every new document needs provenance and classified deltas in `fixtures/corpus.json`; see [corpus](corpus.md).

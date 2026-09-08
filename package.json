@@ -11,6 +11,8 @@
     "generate:types": "cargo run --locked --quiet -p rtf-parser --example generate_types -- --write",
     "check:contract": "cargo run --locked --quiet -p rtf-parser --example generate_types -- --check",
     "check:corpus": "node scripts/corpus.ts",
+    "bench:parser": "cargo run --release --locked -p rtf-parser --example benchmark",
+    "fuzz:parser": "cd fuzz && cargo +nightly fuzz run parse corpus/parse ../fixtures/synthetic ../fixtures/real",
     "build:lib": "pnpm build:wasm && node scripts/build.ts && tsc -p packages/rtf-viewer/tsconfig.build.json",
     "build": "pnpm build:lib && pnpm --filter @rtf-viewer/example build",
     "dev": "pnpm build:lib && pnpm --filter @rtf-viewer/example dev --host 127.0.0.1",

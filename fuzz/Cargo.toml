@@ -1,0 +1,23 @@
+# Not a member of the root workspace: libFuzzer needs a nightly toolchain and sanitiser flags
+# that the normal build must not carry. See docs/testing.md for the commands.
+[package]
+name = "rtf-parser-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+rtf-parser = { path = "../crates/rtf-parser" }
+
+[[bin]]
+name = "parse"
+path = "fuzz_targets/parse.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

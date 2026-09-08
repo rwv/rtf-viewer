@@ -31,6 +31,46 @@ The consumer is a normal Playwright test in `tests/package.spec.ts`, with a sepa
 
 Use installed LibreOffice to generate a real producer sample and PDF reference when available. Word and TextEdit require verified producer access; never label a handcrafted file as their output. Missing producer coverage is an open validation task, not a simulated pass. Distinguish normative rules from producer disagreements and maintain named failing samples.
 
+## Resource bounds, fuzzing and performance
+
+Random bytes rarely form RTF control words, so the fast gate runs a structure-aware mutation
+campaign instead: `crates/rtf-parser/tests/fuzz.rs` starts from every committed fixture and
+applies deterministic edits — truncation, bit flips, insertions, deletions, splices from another
+document, stray braces, and extreme control parameters. A fixed seed makes the campaign identical
+on every machine. Each input must not panic, must finish inside a five-second budget, and, when it
+parses, must produce finite page, row and cell geometry, because layout multiplies those numbers.
+
+The same file replays every input in `fuzz/regressions/`. Any input that ever panics belongs there
+in minimized form, so a fixed crash cannot come back unnoticed. The first entry,
+`empty-leveltext-group.rtf`, was found by the campaign within seconds of it first running: an empty
+`\leveltext` group sliced a zero-length vector from index one.
+
+The open-ended campaign is libFuzzer through `cargo-fuzz`, kept out of the workspace because it
+needs a nightly toolchain and sanitiser flags the normal build must not carry:
+
+```sh
+rustup toolchain install nightly
+cargo +nightly install cargo-fuzz --locked
+pnpm fuzz:parser   # writes to fuzz/corpus/parse, reads fixtures/synthetic and fixtures/real
+```
+
+The first directory libFuzzer is given is the one it _writes_ to, so it must be the ignored
+`fuzz/corpus/parse`; the fixture directories follow as read-only seeds. Passing a fixture
+directory first makes libFuzzer deposit thousands of generated inputs among the committed
+fixtures. The target asserts the same finite-geometry invariant as the fast test. A demonstrated local run
+managed 196,354 executions in 61 seconds with no crash. This is a long-running campaign, so it is
+not part of the per-PR gate; schedule it in CI only once it has been demonstrated locally.
+
+`pnpm bench:parser` measures parse latency and peak live allocation for four large document
+shapes built from fixed recipes: prose, tables, lists and Unicode escapes with byte fallbacks. It
+reports the median of five parses and the peak bytes held, and exits non-zero when a shape misses
+its budget or fails to parse at all — a rejected document is a broken benchmark, not a fast one.
+Budgets are what the project is willing to ship rather than the current measurement plus a margin.
+Measured results are recorded in [verification](verification.md).
+
+Layout and paint latency are not yet measured; that is the next step, and moving layout into a
+Worker should not be decided before it is.
+
 ## Visual evidence
 
 Fixed-font browser snapshots detect rendering regressions. They are not proof of external fidelity. Compare representative pages to a separate desktop producer export; record page count, text, geometry and observed differences. A human/agent review must inspect the image when establishing a baseline. Do not update snapshots solely to make tests pass. Environmental font/rasterizer differences need investigation.

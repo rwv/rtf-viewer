@@ -7,3 +7,6 @@ test-results/
 playwright-report/
 *.tgz
 .DS_Store
+fuzz/target/
+fuzz/artifacts/
+fuzz/corpus/
