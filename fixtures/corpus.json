@@ -212,10 +212,10 @@
         {
           "id": "lo-2427-cell-content-inset",
           "classification": "layout",
-          "summary": "The producer insets cell content by the cell border in addition to the declared padding.",
-          "measured": "Content left edges are 38.25 / 88.50 / 130.50 pt in the engine and 38.70 / 88.90 / 130.95 pt in the reference.",
-          "status": "open",
-          "issue": 21
+          "summary": "The producer adds about 0.42 pt of left inset that the document never asks for; it is not the cell border, not an indent and not a boundary difference.",
+          "measured": "Content left edges are 38.25 / 88.50 / 130.50 pt in the engine and 38.70 / 88.90 / 130.95 pt in the reference, an extra 0.45 / 0.40 / 0.45 pt. Rasterising page 1 at 600 DPI puts the producer's own cell rules at 36.000 / 86.280 / 128.280 / 267.000 pt, which are the boundaries the engine computes to within the 0.03 pt that converting twips to 1/100 mm costs. Columns 2 and 3 declare the same hairline left border yet differ by 0.05 pt, and the document declares no \\li and no \\fi in the body or in any style it references.",
+          "status": "accepted",
+          "issue": 42
         },
         {
           "id": "lo-2427-row-split-point",
@@ -228,10 +228,10 @@
         {
           "id": "lo-2427-collapsed-border-at-continuation",
           "classification": "paint",
-          "summary": "This document gives each row only left, bottom and right borders, so a row starting a continuation page has no rule above it; the producer draws one.",
-          "measured": "The reference page 2 has a full-width rule at y 36 pt; the engine draws none because the model gives that edge to the previous row's bottom border.",
-          "status": "open",
-          "issue": 21
+          "summary": "A row continuing onto a page had no rule above it, because these cells declare only left, bottom and right borders and the break is the engine's own; an edge a page break created is now closed with the border the cell does declare.",
+          "measured": "Rasterising reference page 2 at 600 DPI puts a grey rule at y 36.000 pt spanning x 36 to 267, the table width. The engine now closes the same edge with the declared hairline, centred on it at y 35.875.",
+          "status": "accepted",
+          "issue": 42
         }
       ]
     },

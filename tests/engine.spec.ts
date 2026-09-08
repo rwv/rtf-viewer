@@ -759,6 +759,20 @@ test('real LibreOffice table sample keeps producer column geometry and page coun
       // The row that starts on the last line of page one continues on page two.
       continued: doc.getPageLayout(1).decorations.filter((rule: any) => rule.width > rule.height)
         .length,
+      // The break is this engine's own, so the continuation must be closed at the top even
+      // though these cells declare no top border. The producer draws that rule too.
+      continuationTop: (() => {
+        const rules = doc
+          .getPageLayout(1)
+          .decorations.filter((rule: any) => rule.width > rule.height);
+        const top = Math.min(...rules.map((rule: any) => rule.y));
+        const first = rules.filter((rule: any) => rule.y === top);
+        return [
+          top,
+          Math.min(...first.map((rule: any) => rule.x)),
+          Math.max(...first.map((rule: any) => rule.x + rule.width)),
+        ];
+      })(),
       tableCodes: doc.diagnostics
         .map((diagnostic: any) => diagnostic.code)
         .filter((code: string) => code.includes('table')),
@@ -791,6 +805,10 @@ test('real LibreOffice table sample keeps producer column geometry and page coun
   // inner boundary are declared with different widths, so each is centred on its own stroke.
   expect(result.cellWalls).toEqual([35.625, 85.875, 86.125, 127.875, 128.125, 266.625]);
   expect(result.continued).toBeGreaterThan(0);
+  // Rasterising page two of the reference at 600 DPI puts a grey rule at exactly y 36.000 pt,
+  // the top margin, spanning the table's 231 pt from 36 to 267. The engine closes the same edge:
+  // its 0.25 pt hairline is centred on it, where the producer renders one device pixel below it.
+  expect(result.continuationTop).toEqual([35.875, 36, 267]);
   // Vertical cell alignment is honoured, so this document reports no table diagnostic at all.
   expect(result.tableCodes).toEqual([]);
 });

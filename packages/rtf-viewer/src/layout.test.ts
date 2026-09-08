@@ -502,6 +502,50 @@ describe('vertical cell alignment and shading', () => {
   });
 });
 
+describe('a row split across a page', () => {
+  const hairline = { width: 0.5, color: null, style: 'single' as const };
+  const bottomOnly: TableCell['borders'] = {
+    top: null,
+    left: null,
+    bottom: hairline,
+    right: null,
+  };
+  /** Three lines of ten points each, in a page whose content area only holds two. */
+  const splitRow = (borders = bottomOnly) =>
+    model([tableRow([tableCell(['a', 'b', 'c'], 40, { borders })])], 60, 20);
+
+  it('closes the edge the break created with the border the cell does declare', async () => {
+    const layout = await layoutDocument(splitRow(), services);
+    expect(layout.pages.length).toBe(2);
+    const rules = (index: number) =>
+      layout.pages[index].decorations.map((rule) => [rule.y, rule.height, rule.width] as const);
+    // Page one closes at the cut, page two closes at the top of the continuation, and the
+    // declared bottom border still ends the row. A page break must not open the box. Strokes
+    // are centred on the edge, so a half width sits either side of it.
+    expect(rules(0)).toEqual([[29.75, 0.5, 40]]);
+    expect(rules(1)).toEqual([
+      [9.75, 0.5, 40],
+      [19.75, 0.5, 40],
+    ]);
+  });
+  it('adds nothing to a row that fits on one page', async () => {
+    const layout = await layoutDocument(
+      model([tableRow([tableCell(['a'], 40, { borders: bottomOnly })])], 60, 20),
+      services,
+    );
+    expect(layout.pages.length).toBe(1);
+    expect(layout.pages[0].decorations.map((rule) => rule.y)).toEqual([19.75]);
+  });
+  it('keeps a declared top border rather than borrowing the bottom one', async () => {
+    const declared = { width: 2, color: null, style: 'single' as const };
+    const layout = await layoutDocument(splitRow({ ...bottomOnly, top: declared }), services);
+    expect(layout.pages[1].decorations.map((rule) => [rule.y, rule.height] as const)).toEqual([
+      [9, 2],
+      [19.75, 0.5],
+    ]);
+  });
+});
+
 describe('cooperative yielding', () => {
   it('yields on the work done rather than once per table cell', async () => {
     // Sixty three-cell rows are 240 blocks: 60 rows plus 180 cell paragraphs. A yield every 32
