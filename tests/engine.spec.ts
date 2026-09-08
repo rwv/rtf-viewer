@@ -472,18 +472,17 @@ test('real LibreOffice sample matches independent page/text geometry and nearby 
   // A 4-pixel neighborhood allows documented font/rasterizer shifts at 96 PPI.
   // Symmetric coverage plus exact text/line assertions rejects missing content.
   expect(result.unmatchedRatio).toBeLessThan(0.02);
-  await test
-    .info()
-    .attach('engine-libreoffice-page', {
-      body: Buffer.from(result.png.split(',')[1], 'base64'),
-      contentType: 'image/png',
-    });
+  await test.info().attach('engine-libreoffice-page', {
+    body: Buffer.from(result.png.split(',')[1], 'base64'),
+    contentType: 'image/png',
+  });
 });
 
 test('font changes during measurement cannot publish mixed geometry', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const { RtfDocument } = window.__rtfTest;
     const proto = OffscreenCanvasRenderingContext2D.prototype;
+    // oxlint-disable-next-line typescript/unbound-method -- Restored below; invoked with the original receiver via call.
     const original = proto.measureText;
     const relevantFace = new FontFace('Rtf Race Font', 'local("serif")');
     let triggered = false;
