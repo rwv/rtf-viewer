@@ -4,11 +4,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing release tag to verify and publish
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -49,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || needs.release-please.outputs.sha }}
           fetch-depth: 0
           persist-credentials: false
           submodules: true
@@ -57,12 +52,14 @@ jobs:
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || needs.release-please.outputs.tag }}
         run: |
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]
           version=$(jq -er .version packages/rtf-viewer/package.json)
           test "$RELEASE_TAG" = "v$version"
           test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_TAG^{commit}")"
+          # npm provenance uses the workflow event SHA, not the checkout ref.
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git merge-base --is-ancestor HEAD refs/remotes/origin/main
           test "$(gh release view "$RELEASE_TAG" --json tagName --jq .tagName)" = "$RELEASE_TAG"
           printf 'tag=%s\nversion=%s\n' "$RELEASE_TAG" "$version" >>"$GITHUB_OUTPUT"
