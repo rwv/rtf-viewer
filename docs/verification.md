@@ -4,6 +4,8 @@ This page records the local v1.0.0 verification on 7 September 2026 and the earl
 
 Environment: Linux x86-64; Node 24.13.0; pnpm 10.33.0; Rust 1.98.1; wasm-bindgen CLI/crate 0.2.128; TypeScript 6.0.2; Vite 8.2.2; Vitest 4.1.4; Playwright 1.63.0 with its Chromium. Dependencies are pinned/locked; current official tooling documentation was checked during design rather than copying the upstream workspace wholesale. The chosen TypeScript/Vitest/esbuild versions are tested pins, not a claim to be the newest registry versions.
 
+The final release build uses esbuild 0.28.1. GitHub's initial dependency scan identified development-server advisories in the earlier esbuild pin and the isolated reuse experiment's Vite pin. They were updated to esbuild 0.28.1 and Vite 8.0.16 respectively before tagging v1; neither development dependency ships as a runtime dependency of the public package.
+
 ## Executed checks
 
 | Command | Result |
@@ -36,7 +38,7 @@ The combined gate is `pnpm check`. The [first remote Verify run](https://github.
 
 The v1.0.0 run of `pnpm check` completed with exit code 0. Its separate consumer installed `rtf-viewer-1.0.0.tgz` through `npm install --ignore-scripts` and rendered at the `/viewer/` deployment base. Both bundled asset discovery and explicit URLs to copies of the installed Worker/WASM passed; the report contains no request failures. The output retained two pages with 15 and 9 lines and produced the expected 432-pixel bitmap.
 
-The final local v1 archive is 222,434 bytes. Its consumer build emits 22,426 bytes application JS, a 2,671-byte Worker, and 307,941 bytes WASM. `artifacts/package-manifest.json`, `artifacts/SHA256SUMS`, and `artifacts/package-verification.json` tie the tested archive to its checksum; `artifacts/v1-verification.log` records the full command output. The final README-only adjustment was rebuilt and its tarball consumer rerun successfully in `artifacts/v1-package-final.log`. The release workflow rebuilds from the tag and publishes its own verified archive and measurements, which are authoritative for the downloadable release. Sizes are raw measurements of the named build, not universal bundle promises.
+The final local v1 archive is 222,463 bytes. Its consumer build emits 22,426 bytes application JS, a 2,671-byte Worker, and 307,941 bytes WASM. `artifacts/package-manifest.json`, `artifacts/SHA256SUMS`, and `artifacts/package-verification.json` tie the tested archive to its checksum; `artifacts/v1-verification.log` records the successful full check after the development dependency fixes. The README-only adjustment was also rebuilt and its tarball consumer rerun successfully in `artifacts/v1-package-final.log`. The release workflow rebuilds from the tag and publishes its own verified archive and measurements, which are authoritative for the downloadable release. Sizes are raw measurements of the named build, not universal bundle promises.
 
 ### Earlier implementation evidence
 

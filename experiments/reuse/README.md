@@ -6,7 +6,11 @@ It intentionally contains no third-party sample documents or generated output.
 
 Run `pnpm install`, `pnpm build`, and `pnpm preview` in this directory, then
 select local DOCX and WMF files. The exact measured run and its result are in
-`docs/reuse-evaluation.md`.
+[reuse evaluation](../../docs/reuse-evaluation.md).
+
+The original measurement used Vite 8.0.8. This reproducible source now pins
+Vite 8.0.16, which fixes the upstream Windows development-server advisories;
+its production build was rechecked before the v1 release.
 
 The handwritten `rtf-js.d.ts` records only the API used by this probe. The npm
 package ships declarations, but its directory-valued `types` entry and

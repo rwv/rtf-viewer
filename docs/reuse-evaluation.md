@@ -53,7 +53,7 @@ const svg = new WMFJS.Renderer(wmfBytes).render({
 });
 ```
 
-Commands:
+Historical measurement commands (the checked-in reproduction now uses the patched Vite 8.0.16):
 
 ```sh
 pnpm add @silurus/ooxml@0.86.1 rtf.js@3.0.9
@@ -61,6 +61,12 @@ pnpm add -D vite@8.0.8 typescript@7.0.2 playwright-core@1.59.1
 pnpm build
 node verify-browser.mjs
 ```
+
+Before v1 publication, GitHub identified development-server advisories in the
+probe's Vite version. The maintained `experiments/reuse` workspace was updated
+to 8.0.16 and its production build passed again. The browser and bundle
+measurements below remain the original 8.0.8 measurements; the upstream
+library versions and reuse decision did not change.
 
 The production build passed. In headless Chromium, `DocxDocument.load` parsed
 the public upstream DOCX sample, reported six pages, reported the first page as
