@@ -19,7 +19,7 @@ The consumer asserts two pages with 15 and 9 lines, continuation text, physical 
 
 The source import uses upstream commit `04d5597676b7532b463db9eb5951d99334a153fe`. Its adapter probe is 3,671 bytes raw / 1,388 gzip; the full upstream checkout is a development cost, not npm package content. The packed package has no submodule files or upstream declaration dependency. Source maps intentionally preserve source/license provenance. See [reuse evaluation](reuse-evaluation.md) for the public-package and source-import experiments.
 
-Release Please v17.6.0 was exercised in an isolated clone with the actual configuration and a synthetic `fix:` commit. Its dry-run found `v1.0.1` and proposed `v1.0.2`, updating only the root/public package versions, root changelog, and manifest. No Cargo file changed. Remote activation of this configuration is recorded separately by the repository's [Actions runs](https://github.com/rwv/rtf-viewer/actions).
+Release Please v17.6.0 was exercised in an isolated clone with the actual configuration and a synthetic `fix:` commit. Its dry-run found `v1.0.1` and proposed `v1.0.2`, updating only the root/public package versions, root changelog, and manifest. No Cargo file changed. After [implementation PR #6](https://github.com/rwv/rtf-viewer/pull/6) passed a [clean GitHub checkout and full verification](https://github.com/rwv/rtf-viewer/actions/runs/34196646334), the environment-scoped token successfully created [release PR #7](https://github.com/rwv/rtf-viewer/pull/7). Dependabot also completed its initial submodule update check. The release PR remains the maintainer's publication gate; creating it is not an npm publication.
 
 ## Independent rendering evidence
 

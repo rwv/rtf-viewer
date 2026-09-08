@@ -39,9 +39,15 @@ Release Please itself runs in the `release-please` GitHub Environment, which is 
 
 ## Recover a partial release
 
-Release Please creates the tag and GitHub Release before package verification and npm publication. If a later job fails for an infrastructure reason, use **Actions → Release → Run workflow** from the `main` branch and enter the existing tag. The manual run verifies the tagged commit and safely resumes missing publication or asset uploads.
+Release Please creates the tag and GitHub Release before package verification and npm publication. If a later job fails for an infrastructure reason, select the existing version tag in **Actions → Release → Run workflow**, or use:
 
-Rerunning the original push workflow does not resume publication because Release Please reports `release_created: false` once the GitHub Release exists. Use the manual recovery input instead. If the tagged source itself is defective, leave the published tag and assets unchanged and release a new patch version.
+```sh
+gh workflow run release.yml --ref v1.0.2
+```
+
+Replace the example tag with the partial release's tag. The dispatch ref itself selects the source; there is no separate tag input. The workflow requires the checked-out commit to equal the event's `GITHUB_SHA`, which npm uses in its provenance. Dispatching from `main` is rejected before publication. This also prevents a delayed automatic run from attributing a release to a different main-branch commit.
+
+Rerunning the original push workflow does not resume publication because Release Please reports `release_created: false` once the GitHub Release exists. Dispatch from the release tag instead. If the tagged source itself is defective, leave the published tag and assets unchanged and release a new patch version.
 
 `rtf-viewer@1.0.0` was bootstrapped manually. [`v1.0.1`](https://github.com/rwv/rtf-viewer/actions/runs/34192800727) was the first end-to-end GitHub Actions OIDC publication. Historical hashes and registry checks are recorded in [verification](verification.md#v101-github-actions-to-npm).
 
