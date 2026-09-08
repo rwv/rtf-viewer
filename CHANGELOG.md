@@ -2,6 +2,13 @@
 
 This project follows [Semantic Versioning](https://semver.org/). RTF feature coverage can grow in compatible minor releases; the public model and layout evolution rules are documented in the [README](https://github.com/rwv/rtf-viewer#public-api-and-versioning).
 
+## [1.0.4](https://github.com/rwv/rtf-viewer/compare/v1.0.3...v1.0.4) (2026-09-08)
+
+
+### Bug Fixes
+
+* reject renders superseded by relayout ([#13](https://github.com/rwv/rtf-viewer/issues/13)) ([8868419](https://github.com/rwv/rtf-viewer/commit/8868419ee8ef855ebe94d01a908f78c913201ac9))
+
 ## [1.0.3](https://github.com/rwv/rtf-viewer/compare/v1.0.2...v1.0.3) (2026-09-08)
 
 
