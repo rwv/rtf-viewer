@@ -4,7 +4,5 @@ declare module '@rtf-viewer/upstream-raster-dimensions' {
     height: number;
   }
 
-  export function sniffRasterDimensions(
-    bytes: Uint8Array,
-  ): UpstreamRasterDimensions | null;
+  export function sniffRasterDimensions(bytes: Uint8Array): UpstreamRasterDimensions | null;
 }

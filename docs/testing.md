@@ -42,15 +42,15 @@ The final implementation report must record actual commands, versions, pass/fail
 
 `pnpm check` runs native Rust tests, generated-contract drift verification, Vitest geometry/resource tests, library/example builds, TypeScript checking, production Playwright tests and a newly installed tarball consumer. CI also checks Rust formatting and clippy. Cargo builds, tests, and contract generation use the committed lockfile with `--locked`. Browser integration invokes the real compiled Rust parser.
 
-| Command | Scope |
-| --- | --- |
-| `pnpm test:rust` | Byte parser and resource bounds |
-| `pnpm check:contract` | Rust-generated model matches the committed TypeScript |
-| `pnpm test` | Deterministic geometry, lifecycle and upstream image adapter |
-| `pnpm build` | WASM, browser library, declarations and example |
-| `pnpm typecheck` | Browser, Worker, tests and Node build configuration |
-| `pnpm test:browser` | Production example and engine integration; run after build |
-| `pnpm test:package` | Pack once, install outside the workspace, type-check, build and run |
+| Command               | Scope                                                               |
+| --------------------- | ------------------------------------------------------------------- |
+| `pnpm test:rust`      | Byte parser and resource bounds                                     |
+| `pnpm check:contract` | Rust-generated model matches the committed TypeScript               |
+| `pnpm test`           | Deterministic geometry, lifecycle and upstream image adapter        |
+| `pnpm build`          | WASM, browser library, declarations and example                     |
+| `pnpm typecheck`      | Browser, Worker, tests and Node build configuration                 |
+| `pnpm test:browser`   | Production example and engine integration; run after build          |
+| `pnpm test:package`   | Pack once, install outside the workspace, type-check, build and run |
 
 Upstream commit updates use the same complete CI gate. The Git submodule is initialized during source checkout, but its workspace is never installed or built. Both the original upstream signature and our PNG/JPEG behavior are checked. `artifacts/build-meta.json` records the actual build inputs and outputs for dependency/size review. The packed consumer contains bundled JavaScript and uses no submodule.
 

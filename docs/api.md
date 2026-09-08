@@ -18,9 +18,9 @@ const rtf = await RtfDocument.load(input, {
 });
 
 try {
-  console.log(rtf.pageCount);       // complete count after layout
-  console.log(rtf.getPageSize(0));  // points; indexes are zero-based
-  console.log(rtf.diagnostics);     // bounded compatibility notices
+  console.log(rtf.pageCount); // complete count after layout
+  console.log(rtf.getPageSize(0)); // points; indexes are zero-based
+  console.log(rtf.diagnostics); // bounded compatibility notices
   await rtf.renderPage(canvas, 0, { ppi: 144 });
 
   const bitmap = await rtf.renderPageToBitmap(0, { ppi: 300 });
@@ -29,10 +29,10 @@ try {
     canvas.height = bitmap.height;
     canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
   } finally {
-    bitmap.close();                       // returned bitmaps belong to the caller
+    bitmap.close(); // returned bitmaps belong to the caller
   }
 } finally {
-  rtf.destroy();                           // safe to call more than once
+  rtf.destroy(); // safe to call more than once
 }
 ```
 
@@ -92,13 +92,13 @@ import { RtfViewer } from 'rtf-viewer/viewer';
 
 const viewer = new RtfViewer(canvas);
 await viewer.load(file);
-await viewer.goToPage(1);   // zero-based; the document must have page 2
+await viewer.goToPage(1); // zero-based; the document must have page 2
 await viewer.setScale(1.25);
 viewer.destroy();
 
 const borrowed = RtfViewer.fromDocument(canvas, rtf);
 await borrowed.goToPage(0);
-borrowed.destroy();         // the borrowed document remains caller-owned
+borrowed.destroy(); // the borrowed document remains caller-owned
 ```
 
 A borrowed viewer rejects `load()`. An owning viewer cancels and replaces earlier loads. Continuous scrolling, search, selection, and editing are outside this v1 viewer.

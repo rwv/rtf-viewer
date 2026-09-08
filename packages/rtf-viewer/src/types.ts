@@ -19,7 +19,10 @@ export interface RenderOptions {
   pixelRatio?: number;
   signal?: AbortSignal;
 }
-export interface PageSize { readonly width: number; readonly height: number }
+export interface PageSize {
+  readonly width: number;
+  readonly height: number;
+}
 export interface TextFragment {
   readonly kind: 'text';
   readonly text: string;
@@ -60,10 +63,17 @@ export interface DocumentLayout {
   readonly pages: readonly PageLayout[];
   readonly diagnostics: readonly Diagnostic[];
 }
-export interface TextMetricsPt { width: number; ascent: number; descent: number }
+export interface TextMetricsPt {
+  width: number;
+  ascent: number;
+  descent: number;
+}
 export interface LayoutServices {
   measure(text: string, style: TextStyle): TextMetricsPt;
   font(style: TextStyle): string;
   imageSize(id: string): PageSize;
 }
-export interface LayoutOptions { signal?: AbortSignal; maxPages?: number }
+export interface LayoutOptions {
+  signal?: AbortSignal;
+  maxPages?: number;
+}

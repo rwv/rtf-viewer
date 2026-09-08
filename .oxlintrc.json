@@ -6,5 +6,12 @@
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error"
   },
-  "ignorePatterns": ["third-party/**", "experiments/**", "**/generated/**", "**/.wasm/**", "**/dist/**", "artifacts/**"]
+  "ignorePatterns": [
+    "third-party/**",
+    "experiments/**",
+    "**/generated/**",
+    "**/.wasm/**",
+    "**/dist/**",
+    "artifacts/**"
+  ]
 }
