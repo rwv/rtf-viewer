@@ -50,6 +50,13 @@ listMarker?: ListMarker, } | { "kind": "pageBreak" } | { "kind": "row", cells: A
  */
 left: number, height: RowHeight, align: RowAlign, };
 export type ImageFormat = "png" | "jpeg" | "wmf" | "emf" | "unknown";
-export type ImageResource = { id: string, format: ImageFormat, data: Array<number>, width: number | null, height: number | null, };
+export type RasterBitmap = { width: number, height: number, data: Array<number>, };
+export type ImageResource = { id: string, format: ImageFormat, data: Array<number>, width: number | null, height: number | null, 
+/**
+ * A bitmap read out of a metafile that only carries blit records. Present alongside the
+ * original bytes, never instead of them, so a future metafile player still has the source.
+ * Optional so a model written by an older minor release still satisfies the public type.
+ */
+raster?: RasterBitmap, };
 export type Diagnostic = { code: string, message: string, offset: number, };
 export type DocumentModel = { schemaVersion: number, page: PageGeometry, defaultTab: number, fonts: Array<FontDef>, colors: Array<string | null>, blocks: Array<Block>, images: Array<ImageResource>, diagnostics: Array<Diagnostic>, };

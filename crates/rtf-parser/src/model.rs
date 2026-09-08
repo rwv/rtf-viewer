@@ -324,6 +324,22 @@ pub struct ImageResource {
     pub data: Vec<u8>,
     pub width: Option<f64>,
     pub height: Option<f64>,
+    /// A bitmap read out of a metafile that only carries blit records. Present alongside the
+    /// original bytes, never instead of them, so a future metafile player still has the source.
+    /// Optional so a model written by an older minor release still satisfies the public type.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub raster: Option<RasterBitmap>,
+}
+
+/// Row-major RGBA, top row first, sized `width * height * 4`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct RasterBitmap {
+    pub width: u32,
+    pub height: u32,
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

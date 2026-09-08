@@ -38,7 +38,7 @@ try {
 
 `RtfDocument.load()` resolves only after fonts, images, and all page geometry are ready. Abort rejects with `AbortError`, terminates the dedicated parsing Worker, and releases partial resources. The default parser timeout is 30 seconds; `parseTimeoutMs` accepts 1–120,000 ms.
 
-`getPageLayout(index)` returns deeply frozen, structured-cloneable geometry. A page carries `lines` and `decorations`; a decoration is a `RuleFragment`, a filled rectangle in points painted before the lines, currently used for table borders. `model` exposes the frozen semantic model, including bounded embedded-image bytes. Neither value contains DOM nodes, Canvas contexts, decoded image objects, WASM pointers, or other live engine state.
+`getPageLayout(index)` returns deeply frozen, structured-cloneable geometry. A page carries `lines` and `decorations`; a decoration is a `RuleFragment`, a filled rectangle in points painted before the lines, currently used for table borders. `model` exposes the frozen semantic model, including bounded embedded-image bytes; a metafile whose drawing is a bitmap also carries that bitmap as `raster`, alongside the original bytes rather than instead of them. Neither value contains DOM nodes, Canvas contexts, decoded image objects, WASM pointers, or other live engine state.
 
 ## Fonts, resolution, and lifecycle
 
@@ -113,7 +113,7 @@ The package has two JavaScript API entry points and one deployment-asset subpath
 
 These exports are supported throughout 1.x. Removing or renaming an export, changing an existing field or discriminated union, or changing the documented ownership and lifecycle rules requires a new major version.
 
-RTF coverage will continue to grow in minor releases. A minor release may add backward-compatible optional fields and diagnostic codes; `TableCell.verticalAlign` and `TableCell.shading` were added that way, and a cell that omits them means top alignment and no fill. Adding a required field or an incompatible member to a public discriminated union requires a new major version and, for the semantic model, a new schema version. Consumers should still retain an unknown/default path for data loaded from a newer package and check `model.schemaVersion` when persisting or validating model snapshots. Patch releases may correct parsing, layout, or paint behavior within the documented contract, so pixel output should be treated as renderer output rather than a frozen serialization format.
+RTF coverage will continue to grow in minor releases. A minor release may add backward-compatible optional fields and diagnostic codes; `TableCell.verticalAlign`, `TableCell.shading` and `ImageResource.raster` were added that way, and an image that omits `raster` means no bitmap was read out of it. Adding a required field or an incompatible member to a public discriminated union requires a new major version and, for the semantic model, a new schema version. Consumers should still retain an unknown/default path for data loaded from a newer package and check `model.schemaVersion` when persisting or validating model snapshots. Patch releases may correct parsing, layout, or paint behavior within the documented contract, so pixel output should be treated as renderer output rather than a frozen serialization format.
 
 `layoutDocument(model, services)` is public for custom measurement and geometry work. It returns plain structured-cloneable values and does not prepare browser resources.
 

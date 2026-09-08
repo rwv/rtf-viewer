@@ -161,6 +161,45 @@ export class BrowserResources implements LayoutServices {
       )
         throw new RangeError('Invalid image display dimensions.');
       this.sizes.set(resource.id, fallbackSize);
+      // A metafile that only carried blit records arrives with the bitmap already decoded.
+      if (resource.raster) {
+        const { width, height, data } = resource.raster;
+        if (
+          !Number.isInteger(width) ||
+          !Number.isInteger(height) ||
+          width <= 0 ||
+          height <= 0 ||
+          width > 32767 ||
+          height > 32767 ||
+          data.length !== width * height * 4 ||
+          width * height + pixels > 32_000_000
+        ) {
+          throw new RangeError(
+            `Image ${resource.id} has an invalid embedded bitmap or exceeds the decoded image budget.`,
+          );
+        }
+        pixels += width * height;
+        const source = new ImageData(new Uint8ClampedArray(data), width, height);
+        let embedded: ImageBitmap;
+        try {
+          embedded = await abortable(createImageBitmap(source), signal, (late) => late.close());
+        } catch (error) {
+          checkAbort(signal);
+          this.diagnostics.push({
+            code: 'image-decode-failed',
+            message: `Image ${resource.id} could not be decoded: ${String(error)}`,
+            offset: 0,
+          });
+          continue;
+        }
+        if (this.closed || signal?.aborted) {
+          embedded.close();
+          checkAbort(signal);
+          throw new Error('Document resources were destroyed.');
+        }
+        this.images.set(resource.id, embedded);
+        continue;
+      }
       if (resource.format !== 'png' && resource.format !== 'jpeg') {
         this.diagnostics.push({
           code: 'unsupported-image-format',

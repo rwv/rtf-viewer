@@ -43,10 +43,12 @@ deliberate difference in method, such as comparing a retained line rectangle aga
 
 ## Current contents
 
-| Document                     | Producer             | Exercises                                                            | Open deltas |
-| ---------------------------- | -------------------- | -------------------------------------------------------------------- | ----------- |
-| `libreoffice-25.2.3.2-text`  | LibreOffice 25.2.3.2 | Character styles, indents, spacing, CJK font fallback, line breaking | 0           |
-| `libreoffice-24.2.7.2-table` | LibreOffice 24.2.7.2 | Table rows, boundaries, padding, borders, cross-page continuation    | 5           |
+| Document                        | Producer             | Exercises                                                            | Open deltas |
+| ------------------------------- | -------------------- | -------------------------------------------------------------------- | ----------- |
+| `libreoffice-25.2.3.2-text`     | LibreOffice 25.2.3.2 | Character styles, indents, spacing, CJK font fallback, line breaking | 0           |
+| `libreoffice-24.2.7.2-table`    | LibreOffice 24.2.7.2 | Table rows, boundaries, padding, borders, cross-page continuation    | 4           |
+| `libreoffice-24.2.7.2-list`     | LibreOffice 24.2.7.2 | List tables, levels, generated numbering, restarts, hanging indents  | 0           |
+| `libreoffice-24.2.7.2-metafile` | LibreOffice 24.2.7.2 | WMF picture, embedded EMF comment records, embedded DIB blits        | 0           |
 
 Measured comparisons are in [compatibility](compatibility.md). No Microsoft Word or Apple TextEdit
 artifact is included because neither producer is available here; that coverage stays an open

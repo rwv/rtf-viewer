@@ -39,7 +39,9 @@ Lengths are converted at the semantic boundary: 20 twips = 1 point (p. 8). Defau
 
 `pict` contains a type, dimensions, and either hexadecimal data or `bin` bytes. PNG, JPEG, WMF, and EMF controls are defined on pp. 148–150. `picwgoal`/`pichgoal` are desired twip dimensions; `picw`/`pich` are raster pixels but metafile extents. Scaling defaults to 100 percent (pp. 149–150).
 
-The paired form `{\*\shppict{\pict...}}{\nonshppict{\pict...}}` contains alternatives, so a reader must not emit both (p. 149). PNG/JPEG are rendered after signature and size checks. WMF/EMF bytes are preserved with a diagnostic until a bounded converter is integrated; browsers cannot display them natively.
+The paired form `{\*\shppict{\pict...}}{\nonshppict{\pict...}}` contains alternatives, so a reader must not emit both (p. 149). PNG/JPEG are rendered after signature and size checks.
+
+Browsers cannot display WMF or EMF natively, and the specification says nothing about their contents beyond naming the controls, so the record layouts come from [MS-WMF] and [MS-EMF]. The bytes are always preserved. In addition, a metafile whose drawing is a bitmap is drawn from that bitmap: `META_STRETCHDIB` (0x0F43), `META_DIBSTRETCHBLT` (0x0B41) and `META_DIBBITBLT` (0x0940) in a WMF, and `EMR_STRETCHDIBITS` (81), `EMR_BITBLT` (76) and `EMR_STRETCHBLT` (77) in an EMF, each addressing a `BITMAPINFOHEADER` DIB. A WMF may also carry an entire EMF split across `META_ESCAPE` MFCOMMENT records with the `WMFC` identifier, which is reassembled and read the same way. Uncompressed DIBs at 1, 4, 8, 16, 24 and 32 bits per pixel are decoded, bottom-up rows and 4-byte row padding included; a compressed DIB and a metafile with no blit at all both keep the placeholder. Playing back vector records remains out of scope, so drawing a bitmap is reported as an approximation: the blit's raster operation and any clipping are not applied.
 
 ## Tables
 
