@@ -20,7 +20,7 @@ Environment: Linux x86-64; Node 24.13.0; pnpm 10.33.0; Rust 1.98.1; wasm-bindgen
 | `pnpm test:package` | Fresh npm tarball install with scripts disabled, public declarations, Vite subpath build and automatic/explicit asset probes passed |
 | `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12` | Workflow validation passed |
 
-The combined gate is `pnpm check`. This local evidence does not claim a remotely executed CI run. The checked-in GitHub Actions workflow repeats the gates from a clean checkout. A separate local clone of implementation commit `65f1709` also passed `pnpm install --frozen-lockfile`, `pnpm build` and `pnpm typecheck` with no generated assets carried over; its WASM was rebuilt from source.
+The combined gate is `pnpm check`. The [first remote Verify run](https://github.com/rwv/rtf-viewer/actions/runs/34188748998) passed on release-preparation commit `373599c`, including the complete checks from a clean GitHub-hosted Ubuntu 24.04 runner. The tag-triggered Release workflow repeats verification before creating downloadable assets. A separate local clone of implementation commit `65f1709` also passed `pnpm install --frozen-lockfile`, `pnpm build` and `pnpm typecheck` with no generated assets carried over; its WASM was rebuilt from source.
 
 ## Behavioral evidence
 
@@ -36,7 +36,7 @@ The combined gate is `pnpm check`. This local evidence does not claim a remotely
 
 The v1.0.0 run of `pnpm check` completed with exit code 0. Its separate consumer installed `rtf-viewer-1.0.0.tgz` through `npm install --ignore-scripts` and rendered at the `/viewer/` deployment base. Both bundled asset discovery and explicit URLs to copies of the installed Worker/WASM passed; the report contains no request failures. The output retained two pages with 15 and 9 lines and produced the expected 432-pixel bitmap.
 
-That local v1 archive is 222,422 bytes. Its consumer build emits 22,426 bytes application JS, a 2,671-byte Worker, and 307,941 bytes WASM. `artifacts/package-manifest.json`, `artifacts/SHA256SUMS`, and `artifacts/package-verification.json` tie the tested archive to its checksum; `artifacts/v1-verification.log` records the full command output. The release workflow rebuilds from the tag and publishes its own verified archive and measurements, which are authoritative for the downloadable release. Sizes are raw measurements of the named build, not universal bundle promises.
+The final local v1 archive is 222,434 bytes. Its consumer build emits 22,426 bytes application JS, a 2,671-byte Worker, and 307,941 bytes WASM. `artifacts/package-manifest.json`, `artifacts/SHA256SUMS`, and `artifacts/package-verification.json` tie the tested archive to its checksum; `artifacts/v1-verification.log` records the full command output. The final README-only adjustment was rebuilt and its tarball consumer rerun successfully in `artifacts/v1-package-final.log`. The release workflow rebuilds from the tag and publishes its own verified archive and measurements, which are authoritative for the downloadable release. Sizes are raw measurements of the named build, not universal bundle promises.
 
 ### Earlier implementation evidence
 

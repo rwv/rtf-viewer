@@ -45,6 +45,8 @@ try {
 
   const bitmap = await rtf.renderPageToBitmap(0, { ppi: 300 });
   try {
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
     canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
   } finally {
     bitmap.close();                       // returned bitmaps belong to the caller
