@@ -3,7 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   forbidOnly: !!process.env.CI,
   testDir: './tests',
-  testIgnore: 'package.spec.ts',
+  // The benchmark has its own configuration and budget; the correctness gate must not run it.
+  testIgnore: ['package.spec.ts', 'bench.spec.ts'],
   timeout: 30_000,
   expect: { timeout: 8_000 },
   fullyParallel: false,
