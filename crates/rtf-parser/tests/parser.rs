@@ -640,7 +640,7 @@ fn unsupported_table_features_are_diagnosed_without_silent_downgrade() {
         "unsupported-table-header-row",
         "unsupported-table-keep",
         "approximated-table-cell-pattern",
-        "unsupported-table-merge",
+        "unsupported-vertical-cell-merge",
         "unsupported-nested-table",
     ] {
         assert!(codes.contains(&expected), "missing {expected} in {codes:?}");
@@ -695,6 +695,74 @@ fn shading_intensity_is_clamped_and_unshaded_cells_stay_empty() {
     assert_eq!(cells[0].shading.expect("first").intensity, Some(10_000));
     assert_eq!(cells[1].shading.expect("second").intensity, Some(0));
     assert_eq!(cells[2].shading, None);
+}
+
+#[test]
+fn horizontally_merged_cells_become_one_wider_cell() {
+    let document = model(
+        br"{\rtf1\trowd\clmgf\clbrdrr\brdrs\brdrw20\clpadfl3\clpadl120\clvertalb\cellx1440
+\clmrg\clbrdrr\brdrs\brdrw40\cellx2880\clmrg\clbrdrr\brdrs\brdrw60\cellx4320\cellx5760
+\intbl head\cell more\cell tail\cell last\cell\row}",
+    );
+    let Block::Row { cells, .. } = &document.blocks[0] else {
+        panic!("expected a row");
+    };
+    assert_eq!(cells.len(), 2);
+    // Three definitions collapse into one cell that reaches the last boundary.
+    assert_eq!(cells[0].right, 216.0);
+    assert_eq!(cells[1].right, 288.0);
+    // Content of every merged-away cell is kept, in reading order.
+    assert_eq!(cell_text(&cells[0]), "head\nmore\ntail");
+    assert_eq!(cell_text(&cells[1]), "last");
+    // Properties come from the first cell of the range.
+    assert_eq!(cells[0].padding.left, 6.0);
+    assert_eq!(
+        cells[0].vertical_align,
+        Some(rtf_parser::VerticalAlign::Bottom)
+    );
+    // The right border comes from the definition that owns the final boundary, not from an
+    // intermediate one.
+    assert_eq!(cells[0].borders.right.expect("right border").width, 3.0);
+    assert!(
+        !document
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "invalid-table-merge")
+    );
+}
+
+#[test]
+fn a_leading_merge_continuation_is_reported_and_kept() {
+    let document = model(br"{\rtf1\trowd\clmrg\cellx1440\cellx2880\intbl a\cell b\cell\row}");
+    let Block::Row { cells, .. } = &document.blocks[0] else {
+        panic!("expected a row");
+    };
+    assert_eq!(cells.len(), 2);
+    assert_eq!(cell_text(&cells[0]), "a");
+    assert!(
+        document
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "invalid-table-merge")
+    );
+}
+
+#[test]
+fn vertical_merges_keep_their_own_diagnostic() {
+    let document = model(br"{\rtf1\trowd\clvmgf\cellx1440\cellx2880\intbl a\cell b\cell\row}");
+    let Block::Row { cells, .. } = &document.blocks[0] else {
+        panic!("expected a row");
+    };
+    assert_eq!(cells.len(), 2);
+    let codes: Vec<&str> = document
+        .diagnostics
+        .iter()
+        .map(|d| d.code.as_str())
+        .collect();
+    assert!(
+        codes.contains(&"unsupported-vertical-cell-merge"),
+        "{codes:?}"
+    );
 }
 
 #[test]

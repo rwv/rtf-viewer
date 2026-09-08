@@ -353,6 +353,18 @@ struct CellDef {
     borders: BorderSet,
     vertical_align: Option<VerticalAlign>,
     shading: ShadingBuilder,
+    /// `\clmrg`: this cell continues the horizontally merged range to its left.
+    merge_continuation: bool,
+}
+
+/// One cell after horizontal merges are applied. `right` and `right_border` can come from a
+/// later definition than `first`, because a merged range is drawn on the last boundary.
+#[derive(Debug)]
+struct ResolvedCell<'a> {
+    first: &'a CellDef,
+    right_twips: i32,
+    right_border: &'a CellDef,
+    blocks: Vec<Block>,
 }
 
 /// Where the `\brdr*` properties that follow a border selector are stored.
@@ -1083,9 +1095,11 @@ impl<'a> Parser<'a> {
             "trpaddft" => self.set_padding_unit(false, Side::Top, parameter),
             "trpaddfb" => self.set_padding_unit(false, Side::Bottom, parameter),
             "trpaddfr" => self.set_padding_unit(false, Side::Right, parameter),
-            "clmgf" | "clmrg" | "clvmgf" | "clvmrg" => self.diagnostic(
-                "unsupported-table-merge",
-                "Merged table cells were laid out as ordinary cells",
+            "clmgf" => {}
+            "clmrg" => self.row_mut().pending.merge_continuation = toggle(parameter),
+            "clvmgf" | "clvmrg" => self.diagnostic(
+                "unsupported-vertical-cell-merge",
+                "Vertically merged cells were laid out as ordinary cells in each row",
                 offset,
             ),
             "clvertalt" => self.row_mut().pending.vertical_align = Some(VerticalAlign::Top),
@@ -1841,11 +1855,13 @@ impl<'a> Parser<'a> {
             return Ok(());
         }
 
-        // Pair each boundary with its content, dropping boundaries that do not advance.
-        let mut resolved: Vec<(&CellDef, Vec<Block>)> = Vec::new();
+        // Pair each boundary with its content, dropping boundaries that do not advance and
+        // folding a horizontally merged range into the cell that starts it.
+        let mut resolved: Vec<ResolvedCell<'_>> = Vec::new();
         let mut carried: Vec<Block> = Vec::new();
         let mut previous = row.left_twips;
         let mut dropped = false;
+        let mut orphan_merge = false;
         for (index, def) in row.defs.iter().enumerate() {
             let mut blocks = contents
                 .get_mut(index)
@@ -1854,19 +1870,38 @@ impl<'a> Parser<'a> {
             if def.right_twips <= previous {
                 dropped = true;
                 match resolved.last_mut() {
-                    Some((_, last)) => last.append(&mut blocks),
+                    Some(last) => last.blocks.append(&mut blocks),
                     None => carried.append(&mut blocks),
                 }
                 continue;
             }
             previous = def.right_twips;
+            if def.merge_continuation {
+                if let Some(last) = resolved.last_mut() {
+                    last.right_twips = def.right_twips;
+                    last.right_border = def;
+                    // Writers emit a bare \cell for every merged-away cell. Its empty paragraph
+                    // is punctuation, not content, and must not add a blank line to the range.
+                    last.blocks.extend(blocks.drain(..).filter(
+                        |block| !matches!(block, Block::Paragraph { runs, .. } if runs.is_empty()),
+                    ));
+                    continue;
+                }
+                // A range that starts with its own continuation has nothing to merge into.
+                orphan_merge = true;
+            }
             let mut merged = std::mem::take(&mut carried);
             merged.append(&mut blocks);
-            resolved.push((def, merged));
+            resolved.push(ResolvedCell {
+                first: def,
+                right_twips: def.right_twips,
+                right_border: def,
+                blocks: merged,
+            });
         }
         for extra in contents.into_iter().skip(row.defs.len()) {
             match resolved.last_mut() {
-                Some((_, last)) => last.extend(extra),
+                Some(last) => last.blocks.extend(extra),
                 None => carried.extend(extra),
             }
         }
@@ -1874,6 +1909,13 @@ impl<'a> Parser<'a> {
             self.diagnostic(
                 "invalid-table-definition",
                 "Table cell boundaries are not strictly increasing; those cells were merged",
+                offset,
+            );
+        }
+        if orphan_merge {
+            self.diagnostic(
+                "invalid-table-merge",
+                "A \\clmrg cell has no cell to its left; it was kept as an ordinary cell",
                 offset,
             );
         }
@@ -1889,7 +1931,8 @@ impl<'a> Parser<'a> {
         let cells = resolved
             .into_iter()
             .enumerate()
-            .map(|(index, (def, blocks))| {
+            .map(|(index, cell)| {
+                let def = cell.first;
                 let border =
                     |side: Side, fallback: Option<BorderBuilder>| match def.borders.get(side) {
                         Some(declared) => declared.resolve(),
@@ -1898,8 +1941,8 @@ impl<'a> Parser<'a> {
                 let horizontal =
                     |side: Side| border(side, row.borders.get(side).or(row.inner_horizontal));
                 TableCell {
-                    right: twips(def.right_twips),
-                    blocks,
+                    right: twips(cell.right_twips),
+                    blocks: cell.blocks,
                     padding: Padding {
                         left: def
                             .padding
@@ -1935,14 +1978,15 @@ impl<'a> Parser<'a> {
                                 row.inner_vertical
                             },
                         ),
-                        right: border(
-                            Side::Right,
-                            if index == last {
+                        right: match cell.right_border.borders.get(Side::Right) {
+                            Some(declared) => declared.resolve(),
+                            None => if index == last {
                                 row.borders.get(Side::Right).or(row.inner_vertical)
                             } else {
                                 row.inner_vertical
-                            },
-                        ),
+                            }
+                            .and_then(BorderBuilder::resolve),
+                        },
                     },
                 }
             })
