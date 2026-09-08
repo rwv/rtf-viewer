@@ -1,6 +1,6 @@
 {
   "name": "rtf-viewer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Browser-only RTF document engine with Rust/WASM parsing and paginated Canvas output",
   "license": "MIT",
   "author": "rwv",

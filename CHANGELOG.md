@@ -2,6 +2,20 @@
 
 This project follows [Semantic Versioning](https://semver.org/). RTF feature coverage can grow in compatible minor releases; the public model and layout evolution rules are documented in the [README](https://github.com/rwv/rtf-viewer#public-api-and-versioning).
 
+## [1.2.0](https://github.com/rwv/rtf-viewer/compare/v1.1.0...v1.2.0) (2026-09-08)
+
+
+### Features
+
+* honour vertical cell alignment and cell shading ([#26](https://github.com/rwv/rtf-viewer/issues/26)) ([2ca52c1](https://github.com/rwv/rtf-viewer/commit/2ca52c1635be8dd570d0e4ee3f3fd75a8d324908)), closes [#25](https://github.com/rwv/rtf-viewer/issues/25)
+* merge horizontally merged table cells into one cell ([#29](https://github.com/rwv/rtf-viewer/issues/29)) ([e68f00b](https://github.com/rwv/rtf-viewer/commit/e68f00b3517db5323db3adba76227e0a3395eed5)), closes [#28](https://github.com/rwv/rtf-viewer/issues/28)
+* resolve real list numbering from the document's list tables ([#31](https://github.com/rwv/rtf-viewer/issues/31)) ([7ab6bd7](https://github.com/rwv/rtf-viewer/commit/7ab6bd7222f69363a2052ae49f7432ccd857d70d)), closes [#30](https://github.com/rwv/rtf-viewer/issues/30)
+
+
+### Bug Fixes
+
+* stop an empty leveltext group panicking, and add the fuzz and performance baseline ([#32](https://github.com/rwv/rtf-viewer/issues/32)) ([9d0e4d7](https://github.com/rwv/rtf-viewer/commit/9d0e4d79841396a0eec13dcf09d0b4dcc90220c2)), closes [#19](https://github.com/rwv/rtf-viewer/issues/19)
+
 ## [1.1.0](https://github.com/rwv/rtf-viewer/compare/v1.0.4...v1.1.0) (2026-09-08)
 
 
