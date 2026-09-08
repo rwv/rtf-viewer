@@ -1,0 +1,5 @@
+[submodule "third-party/office-open-xml-viewer/upstream"]
+	path = third-party/office-open-xml-viewer/upstream
+	url = https://github.com/yukiyokotani/office-open-xml-viewer.git
+	branch = main
+	shallow = true

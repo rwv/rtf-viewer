@@ -1,151 +1,84 @@
 # rtf-viewer
 
-`rtf-viewer` is a standalone, read-only RTF document engine for modern browsers. It parses original bytes in a WebAssembly Worker, lays out every page in points, and paints retained page geometry to Canvas 2D or caller-owned `ImageBitmap` objects. It has no framework dependency and does not use a conversion service.
+A browser-only RTF document engine: original bytes → Rust/WASM parser → paginated layout → Canvas or ImageBitmap. Use the engine in your application or add the lightweight viewer. No framework, server conversion, or automatic font downloads are required.
 
-The 1.x line is the supported public API baseline. It deliberately implements a bounded subset of RTF rather than claiming complete format fidelity. Unicode and common Windows/East Asian codepages, direct text formatting, paragraph layout, pagination, and inline PNG/JPEG pictures are supported within the documented limits. Tables and lists have text fallbacks only; stylesheet inheritance, headers/footers, section-specific page geometry, and WMF/EMF drawing remain incomplete. See the [support matrix](https://github.com/rwv/rtf-viewer/blob/main/docs/support-matrix.md) before choosing it for a document corpus.
+The 1.x release supports Unicode and common Windows/East Asian codepages, direct text formatting, paragraphs, real paper sizes, automatic pagination, and inline PNG/JPEG. Tables and lists currently have text fallbacks; headers, footers, stylesheet inheritance, and WMF/EMF rendering remain incomplete. Check the [support matrix](https://github.com/rwv/rtf-viewer/blob/main/docs/support-matrix.md) for your document corpus.
 
 ## Install
-
-Install the current release from npm:
 
 ```sh
 npm install rtf-viewer
 ```
 
-The same package archive is attached to the GitHub Release as a registry-independent fallback:
-
-```sh
-npm install https://github.com/rwv/rtf-viewer/releases/download/v1.0.1/rtf-viewer-1.0.1.tgz
-```
-
-The release also includes `SHA256SUMS`; verify the archive against it when your installation process requires an integrity check.
-
-Package consumers need only the shipped ESM JavaScript, declarations, parser Worker, and WASM assets. They do not need Rust, wasm-bindgen, or this source checkout.
+The package includes JavaScript, TypeScript declarations, the parser Worker, and WASM. npm consumers need neither Rust nor a source checkout. Tested archives and checksums are also available from [GitHub Releases](https://github.com/rwv/rtf-viewer/releases).
 
 ## Render a document
 
-Input may be a `Blob` (including `File`), `ArrayBuffer`, or `Uint8Array`. Byte views are copied and never detached. Fetch URL input in your application so its network and credential policy stays under your control.
+Given a local file input and a canvas:
 
 ```ts
 import { RtfDocument } from 'rtf-viewer';
 
-const input = window.document.querySelector<HTMLInputElement>('#file')!.files![0];
-const canvas = window.document.querySelector<HTMLCanvasElement>('#page')!;
-const controller = new AbortController();
-const rtf = await RtfDocument.load(input, {
-  signal: controller.signal,
-  fallbackFont: 'serif',
-});
+const file = document.querySelector<HTMLInputElement>('#file')!.files![0];
+const canvas = document.querySelector<HTMLCanvasElement>('#page')!;
+const rtf = await RtfDocument.load(file);
 
 try {
-  console.log(rtf.pageCount);       // complete count after layout
-  console.log(rtf.getPageSize(0));  // points; indexes are zero-based
-  console.log(rtf.diagnostics);     // bounded compatibility notices
+  console.log(rtf.pageCount);      // complete count after loading
+  console.log(rtf.getPageSize(0)); // points; page indexes start at zero
+  console.log(rtf.diagnostics);   // unsupported or approximated content
   await rtf.renderPage(canvas, 0, { ppi: 144 });
-
-  const bitmap = await rtf.renderPageToBitmap(0, { ppi: 300 });
-  try {
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
-  } finally {
-    bitmap.close();                       // returned bitmaps belong to the caller
-  }
 } finally {
-  rtf.destroy();                           // safe to call more than once
+  rtf.destroy();
 }
 ```
 
-`RtfDocument.load()` resolves only after fonts, images, and all page geometry are ready. Abort rejects with `AbortError`, terminates the dedicated parsing Worker, and releases partial resources. The default parser timeout is 30 seconds; `parseTimeoutMs` accepts 1–120,000 ms.
+`load()` accepts `Blob`, `File`, `ArrayBuffer`, or `Uint8Array`. For an image pipeline, use `await rtf.renderPageToBitmap(index, { ppi: 300 })` and close each returned bitmap with `bitmap.close()` when finished. Layout uses points; PPI, scale, and pixel ratio change output pixels without changing line breaks or page count.
 
-`getPageLayout(index)` returns deeply frozen, structured-cloneable geometry. `model` exposes the frozen semantic model, including bounded embedded-image bytes. Neither value contains DOM nodes, Canvas contexts, decoded image objects, WASM pointers, or other live engine state.
-
-## Fonts, resolution, and lifecycle
-
-The engine never downloads fonts. Register the fonts your application permits, then map RTF family names to prepared CSS family names:
-
-```ts
-const rtf = await RtfDocument.load(bytes, {
-  fonts: {
-    Arial: 'My Prepared Arial',
-    'Times New Roman': 'My Prepared Times',
-  },
-  fallbackFont: 'My Prepared Serif',
-});
-```
-
-Measurement and paint use the same font configuration. Browser font events set `rtf.needsRelayout`; call `await rtf.relayout()` before rendering again. System-font changes that do not emit an event require an explicit relayout too.
-
-Backing pixels are `ceil(points × ppi / 72 × scale × pixelRatio)` on each axis. The defaults are `ppi: 96`, `scale: 1`, and `pixelRatio: 1`. These paint settings do not change line breaks or page count. Canvas CSS size belongs to the caller.
-
-Different canvas targets may render concurrently. Concurrent renders on the same target reject. Cancellation or failure can leave a caller canvas partially painted; a subsequent render replaces it. `destroy()` cancels pending work and frees engine-owned resources while leaving caller canvases, caller font faces, and previously returned bitmaps alone.
-
-## Lightweight viewer
-
-The optional viewer owns its document by default and supplies page navigation and zoom around a caller-owned canvas:
-
-```ts
-import { RtfViewer } from 'rtf-viewer/viewer';
-
-const viewer = new RtfViewer(canvas);
-await viewer.load(file);
-await viewer.goToPage(1);   // zero-based; the document must have page 2
-await viewer.setScale(1.25);
-viewer.destroy();
-
-const borrowed = RtfViewer.fromDocument(canvas, rtf);
-await borrowed.goToPage(0);
-borrowed.destroy();         // the borrowed document remains caller-owned
-```
-
-A borrowed viewer rejects `load()`. An owning viewer cancels and replaces earlier loads. Continuous scrolling, search, selection, and editing are outside this v1 viewer.
+An `AbortSignal` cancels loading or rendering. Destroying a document releases its resources and is safe to repeat. Returned bitmaps and supplied canvases belong to the caller. Prepared fonts must be available before layout; font changes require an explicit `relayout()`. See the [API reference](https://github.com/rwv/rtf-viewer/blob/main/docs/api.md) for font mapping, cancellation, concurrent rendering, viewer ownership, and asset URL overrides.
 
 ## Public API and versioning
 
-The package has two JavaScript API entry points and one deployment-asset subpath:
+| Import | Purpose |
+| --- | --- |
+| `rtf-viewer` | `RtfDocument`, `layoutDocument`, `pixelSize`, and public model/layout/options types |
+| `rtf-viewer/viewer` | `RtfViewer` for navigation and zoom around a supplied canvas |
+| `rtf-viewer/assets/*` | Shipped Worker/WASM assets for explicit deployment |
 
-- `rtf-viewer`: runtime exports `RtfDocument`, `layoutDocument`, and `pixelSize`; type exports `CanvasTarget`, `RtfInput`, `LoadOptions`, `RenderOptions`, `PageSize`, `TextFragment`, `ImageFragment`, `Fragment`, `LineLayout`, `PageLayout`, `DocumentLayout`, `TextMetricsPt`, `LayoutServices`, `LayoutOptions`, `Diagnostic`, `DocumentModel`, and `TextStyle`.
-- `rtf-viewer/viewer`: `RtfViewer`.
-- `rtf-viewer/assets/*`: access to the shipped files under `dist`, intended for hosts that must copy or address the parser Worker, wasm-bindgen module, or WASM binary explicitly.
+The [1.x API contract](https://github.com/rwv/rtf-viewer/blob/main/docs/api.md#public-api-and-versioning) includes these exports, public fields, and ownership rules. Incompatible changes require a major version. Format coverage can grow compatibly in minor releases; fixes can change rendered pixels. This is a read-only library, with no editing or round-trip promise.
 
-These exports are supported throughout 1.x. Removing or renaming an export, changing an existing field or discriminated union, or changing the documented ownership and lifecycle rules requires a new major version.
+## Relationship to office-open-xml-viewer
 
-RTF coverage will continue to grow in minor releases. A minor release may add backward-compatible optional fields and diagnostic codes. Adding a required field or an incompatible member to a public discriminated union requires a new major version and, for the semantic model, a new schema version. Consumers should still retain an unknown/default path for data loaded from a newer package and check `model.schemaVersion` when persisting or validating model snapshots. Patch releases may correct parsing, layout, or paint behavior within the documented contract, so pixel output should be treated as renderer output rather than a frozen serialization format.
+[office-open-xml-viewer](https://github.com/yukiyokotani/office-open-xml-viewer) informed the separation of parsing, layout, painting, and UI. Its image-header implementation is imported from a pinned Git submodule and bundled into this package. Dependabot proposes upstream commit updates, which run through our adapter, parser, layout, browser, and package tests before merge.
 
-`layoutDocument(model, services)` is public for custom measurement and geometry work. It returns plain structured-cloneable values and does not prepare browser resources.
-
-## Hosting and limits
-
-Worker and WASM URLs are resolved relative to the installed module with `new URL(..., import.meta.url)`. If a bundler cannot discover them, `workerUrl` and `wasmUrl` may point to deployed copies of the shipped assets. Serve JavaScript as modules and WASM as `application/wasm`; CSP must allow the application's Worker and WASM compilation. The library makes no automatic third-party request.
-
-Default resource ceilings include 16 MiB input, 256 nested groups, 2 million lexical tokens/text units, 100,000 blocks including page breaks, 256 images, 8 MiB per embedded image, 32 million decoded image pixels, 2,000 pages, and 32 million pixels per output canvas. The full bounds and ownership rules are in [architecture](https://github.com/rwv/rtf-viewer/blob/main/docs/architecture.md). A diagnostic reports unsupported or approximated content; it is not evidence that every other part of an arbitrary document reproduced faithfully.
+This shares the small image implementation without running the upstream OOXML build or adapting RTF into DOCX-specific models. Its current npm package does not expose that helper as a public API. If a suitable public entry becomes available, an npm dependency is the preferred replacement. The [reuse evaluation](https://github.com/rwv/rtf-viewer/blob/main/docs/reuse-evaluation.md) records actual imports, measurements, and the limits of this relationship.
 
 ## Development
 
-Development requires Node.js 22.12 or newer (Node 24 is tested), pnpm 10.33.0, Rust through rustup, and wasm-bindgen CLI 0.2.128. The Rust toolchain and WASM target are pinned in `rust-toolchain.toml`.
+Use Node from [.node-version](https://github.com/rwv/rtf-viewer/blob/main/.node-version), pnpm 10.33.0, and Rust through rustup. Keep Cargo and wasm-bindgen on `PATH` (on Unix, source `"$HOME/.cargo/env"` after installing Rust).
 
 ```sh
+git clone --recurse-submodules https://github.com/rwv/rtf-viewer.git
+cd rtf-viewer
 corepack enable
 pnpm install --frozen-lockfile
 cargo install wasm-bindgen-cli --version 0.2.128 --locked
 pnpm dev
+```
 
+For an existing checkout, run `git submodule update --init --recursive`. The submodule is a source dependency only: do not install or build its workspace.
+
+```sh
 pnpm exec playwright install chromium
 pnpm check
 ```
 
-`pnpm check` runs the native parser tests, generated-contract drift check, unit and layout tests, release guards, production builds, type checking, Chromium integration, and npm installation of the packed archive into a separate consumer. The consumer verifies a non-root deployment path and both automatic and explicit Worker/WASM URLs. Release maintainers should follow the [release procedure](https://github.com/rwv/rtf-viewer/blob/main/docs/releasing.md).
+`pnpm check` covers native Rust, generated contracts, deterministic layout, typed browser/Worker/build code, production browser tests, and a fresh npm installation of the packed archive. See [testing](https://github.com/rwv/rtf-viewer/blob/main/docs/testing.md) for individual commands and independent reference outputs.
 
-Further documentation:
+## Releases and contributing
 
-- [Architecture and public contracts](https://github.com/rwv/rtf-viewer/blob/main/docs/architecture.md)
-- [Feature support matrix](https://github.com/rwv/rtf-viewer/blob/main/docs/support-matrix.md)
-- [Verification record](https://github.com/rwv/rtf-viewer/blob/main/docs/verification.md)
-- [Testing strategy](https://github.com/rwv/rtf-viewer/blob/main/docs/testing.md)
-- [Producer compatibility report](https://github.com/rwv/rtf-viewer/blob/main/docs/compatibility.md)
-- [Roadmap](https://github.com/rwv/rtf-viewer/blob/main/docs/roadmap.md)
-- [Upstream reuse evaluation](https://github.com/rwv/rtf-viewer/blob/main/docs/reuse-evaluation.md)
-- [Engineering constraints](https://github.com/rwv/rtf-viewer/blob/main/AGENTS.md)
-- [Third-party notices](https://github.com/rwv/rtf-viewer/blob/main/THIRD_PARTY_NOTICES.md)
+Use Conventional Commit titles for squash-merged PRs: `fix:` for patches, `feat:` for minor releases, and `!` for breaking changes. Release Please maintains the version/changelog PR. Merging that PR creates the tag and release; Actions verifies the package and publishes it through the `npm` GitHub Environment using OIDC. Manual dispatch is reserved for recovery. See the [release procedure](https://github.com/rwv/rtf-viewer/blob/main/docs/releasing.md).
 
-The normative format reference is Microsoft's [Rich Text Format Specification 1.9.1](https://officeprotocoldoc.z19.web.core.windows.net/files/Archive_References/%5BMSFT-RTF%5D.pdf), dated 19 March 2008.
+Start with the [engineering constraints](https://github.com/rwv/rtf-viewer/blob/main/AGENTS.md), [architecture](https://github.com/rwv/rtf-viewer/blob/main/docs/architecture.md), and [roadmap](https://github.com/rwv/rtf-viewer/blob/main/docs/roadmap.md). Compatibility evidence lives in the [producer report](https://github.com/rwv/rtf-viewer/blob/main/docs/compatibility.md) and [verification record](https://github.com/rwv/rtf-viewer/blob/main/docs/verification.md). Source reuse and licenses are listed in [third-party notices](https://github.com/rwv/rtf-viewer/blob/main/THIRD_PARTY_NOTICES.md).
+
+The normative reference is Microsoft's [Rich Text Format Specification 1.9.1](https://officeprotocoldoc.z19.web.core.windows.net/files/Archive_References/%5BMSFT-RTF%5D.pdf), dated 19 March 2008.

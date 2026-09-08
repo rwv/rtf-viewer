@@ -1,6 +1,5 @@
 /// <reference lib="webworker" />
 // This import remains external in the build; the generated glue lives beside the Worker.
-// @ts-ignore generated wasm-bindgen asset is copied to dist by build-lib.mjs
 import init, { parse_rtf } from './rtf_parser.js';
 import type { ParseRequest, ParseResponse } from './worker-protocol.js';
 import type { DocumentModel } from './generated/model.js';

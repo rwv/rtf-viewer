@@ -1,8 +1,10 @@
 # Upstream reuse evaluation
 
-Status: complete for the v1 browser viewer. The decision is to reuse a
-small attributed source subset for PNG/JPEG header inspection and to keep the
-RTF parser, layout engine, and WMF/EMF work independent.
+Current decision: import the original image-header implementation from a pinned
+upstream Git submodule, behind a PNG/JPEG adapter. Dependabot proposes updates;
+our tests validate them before merge. The RTF parser and layout engine remain
+independent. The original v1 experiments below explain the API boundaries;
+[post-v1 upstream tracking](#post-v1-upstream-tracking) describes the current build.
 
 ## Sources and fixed revisions
 
@@ -103,8 +105,8 @@ the viewer to an unpublished implementation detail.
 The source-only version of the complete upstream dimension sniffer built to
 4,234 bytes raw and 1,755 bytes gzip in an isolated Vite page. That complete
 module still recognized GIF, BMP, WebP, and TIFF and imported upstream budget
-and TIFF contracts. The adopted PNG/JPEG extraction is smaller and matches the
-initial RTF image scope.
+and TIFF contracts. The initial PNG/JPEG extraction was smaller and matched the
+initial RTF image scope; the current source import supersedes that copy.
 
 The source of the reproducible file-input package probe is under
 `experiments/reuse/`. Generated `dist`, `node_modules`, and the upstream sample
@@ -176,22 +178,22 @@ It is not adopted as an npm dependency, source copy, or submodule for the initia
 PNG/JPEG milestone. WMF/EMF support should be a later explicit capability with
 its own record support matrix and diagnostics.
 
-## Route decision
+## Original v1 route decision
 
 | Route | Result | Decision |
 | --- | --- | --- |
 | `@silurus/ooxml` npm dependency | Supported `DocxDocument` works, but small core helpers are unpublished and the DOCX graph emits large JS/WASM/Worker assets | Reject for runtime reuse |
-| office-open-xml-viewer submodule/fork | Provides all source, but imports another pnpm/Cargo workspace and preserves strong DOCX semantics | Reject |
+| Whole OOXML engine via submodule/fork | Would require the upstream build and adaptation of its DOCX semantics | Reject for full-engine reuse |
 | Attributed source subset | Pure byte inspection is isolated, testable, and useful before browser decode | Adopt PNG/JPEG subset only |
 | `rtf.js` npm dependency | WMF renderer works in Chromium, but the supported import is large, DOM/SVG-bound, and silently skips many records | Defer/reject for initial runtime |
 | rtf.js source/submodule | Avoids the top-level bundle but imports a 6,726-line, 248,919-byte WMF/EMF/SVG subsystem that needs new diagnostics and ownership integration | Defer |
 
-## Adopted source and maintenance contract
+## Original v1 source extraction
 
-`packages/rtf-viewer/src/vendor/raster-dimensions.ts` derives from
+The original `packages/rtf-viewer/src/vendor/raster-dimensions.ts` derived from
 office-open-xml-viewer's `packages/core/src/image/raster-dimensions.ts` at the
-fixed commit above. It retains PNG IHDR parsing and JPEG SOF traversal, including
-browser-natural EXIF orientation handling. It removes GIF, BMP, WebP, TIFF,
+fixed commit above. It retained PNG IHDR parsing and JPEG SOF traversal, including
+browser-natural EXIF orientation handling. It removed GIF, BMP, WebP, TIFF,
 OOXML budget constants, and all other public helpers.
 
 The local API is only `sniffRasterDimensions(Uint8Array)`. It reports declared
@@ -205,3 +207,45 @@ License and provenance are recorded in `THIRD_PARTY_NOTICES.md` and
 the fixed source path, review security/correctness changes in PNG and JPEG
 parsing, reapply the recorded narrowing, and run the focused tests. There is no
 runtime dependency on the research checkout and no uncommitted submodule state.
+
+## Post-v1 upstream tracking
+
+The initial copied extraction was replaced with a direct source import from a
+shallow Git submodule at `third-party/office-open-xml-viewer/upstream`, still
+pinned to commit `04d5597676b7532b463db9eb5951d99334a153fe`. The local
+`packages/rtf-viewer/src/vendor/raster-dimensions.ts` file is now only an
+adapter: it rejects non-PNG/JPEG signatures, calls the unmodified upstream
+implementation, and projects the result into the same local structural type.
+
+This is the smallest verified source dependency route available at the fixed
+revision. The npm package still does not export the helper or a `core` subpath,
+and the `@silurus/ooxml-core` workspace package is private and absent from npm.
+A pinned pnpm Git-subdirectory install was also exercised successfully, but it
+installed 6.3 MB and parsed 171 core modules during bundling. A normal install
+failed unless the dependency's `prepare` script was explicitly allowlisted;
+that script builds an unrelated MathJax asset. The Git dependency is therefore
+less isolated than the submodule source import.
+
+An esbuild production probe of the adapter and direct submodule source import
+executed successfully and emitted 3,671 bytes raw (1,388 bytes gzip). It parsed
+four inputs and retained code from only the raster sniffer, the TIFF header
+contract used by it, and the local adapter; the imported pixel-budget module was
+removed by tree shaking. The normal package build bundles those bytes, so npm
+consumers neither clone the submodule nor install the upstream
+DOCX/WASM/Worker graph. Its source map names those two upstream source files and
+no DOCX source. The tradeoff is repository checkout size: the shallow upstream
+working tree measured 50 MB at the fixed revision, while none of its build or
+runtime dependencies are installed.
+
+The build and test configurations share one alias definition that resolves the
+adapter's private module name to the submodule source. Declaration generation
+uses a local narrow ambient contract, and a compile-time assignment test imports
+the real upstream function to catch signature drift. The emitted declarations
+contain neither the private module name nor a submodule path.
+
+Submodule update pull requests are reviewed dependency updates: confirm the new
+commit and license, inspect changes to the three reachable image modules, run
+the focused tests, build/typecheck, verify the bundle graph, and update this
+provenance record. If upstream publishes a stable, narrow raster-dimensions
+entry point later, replace the submodule with an exact npm dependency and let
+standard dependency-update tooling propose version bumps.

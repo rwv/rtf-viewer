@@ -1,6 +1,6 @@
 # RTF support matrix
 
-This matrix describes the v1.0.0 rendering baseline. The major version establishes the public API contract; it does not imply complete RTF coverage.
+This matrix describes the 1.x rendering baseline. The major version establishes the public API contract; it does not imply complete RTF coverage.
 
 **Verified** means the named evidence checks the stated subset, not the entire specification feature. **Partial** identifies known omissions. **Planned** has no current implementation claim. Native tests are in `crates/rtf-parser/tests/parser.rs`; geometry tests in `packages/rtf-viewer/src/layout.test.ts`; production browser tests in `tests/engine.spec.ts` and `tests/browser.spec.ts`.
 

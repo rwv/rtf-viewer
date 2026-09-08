@@ -2,13 +2,15 @@
 
 ## office-open-xml-viewer
 
-`packages/rtf-viewer/src/vendor/raster-dimensions.ts` derives its PNG and JPEG
-header parsing from `packages/core/src/image/raster-dimensions.ts` in
+`packages/rtf-viewer/src/vendor/raster-dimensions.ts` imports PNG and JPEG
+header parsing from `packages/core/src/image/raster-dimensions.ts` in the
 [office-open-xml-viewer](https://github.com/yukiyokotani/office-open-xml-viewer),
 fixed at commit `04d5597676b7532b463db9eb5951d99334a153fe`.
 
-Copyright (c) 2026 Yuki Yokotani. Licensed under the MIT License. The
-local-change record is under `third-party/office-open-xml-viewer/`.
+Copyright (c) 2026 Yuki Yokotani. Licensed under the MIT License. The fixed
+upstream source is tracked as a Git submodule under
+`third-party/office-open-xml-viewer/upstream`; the local adapter and change
+record are documented alongside it.
 
 ```text
 MIT License

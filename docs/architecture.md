@@ -20,7 +20,7 @@ flowchart LR
   V[Optional viewer] --> E
 ```
 
-One Cargo workspace contains `crates/rtf-parser`. One pnpm workspace contains `packages/rtf-viewer` and `examples/viewer`. A source reference or experiment is not a workspace dependency. No general OOXML platform is introduced.
+One Cargo workspace contains `crates/rtf-parser`. One pnpm workspace contains `packages/rtf-viewer` and `examples/viewer`. The pinned upstream submodule under `third-party/office-open-xml-viewer/upstream` supplies image-header source only; its pnpm/Cargo workspaces are not members of ours and are never installed or built. Isolated research experiments remain outside the production workspaces.
 
 Rust exports a bounded byte-to-model function through wasm-bindgen. Lexical scanning and scoped interpretation are methods in one parser module, not separate packages. The WASM boundary returns serde JSON, which the Worker parses into the generated TypeScript model; this intentionally preserves null/array semantics at the cost of an intermediate string. The parser scans control tokens without first decoding the whole document. It clones scoped state on `{`, restores on `}`, consumes `bin` payloads by byte count, and distinguishes destinations from formatting. Text byte runs are decoded only after resolving the active document/font codepage. Escaped bytes remain contiguous for multibyte decoding. Unicode fallback skipping counts RTF tokens as required by pp. 14–15, including one entire binary token, and terminates at braces. UTF-16 surrogate pairs are combined. Unknown ignorable destinations are skipped as groups, with diagnostics.
 
@@ -61,7 +61,7 @@ M3 adds actual row/cell semantics, measured table fragments and row continuation
 - Different canvas targets can render concurrently. Concurrent work on one canvas rejects to avoid races. Each bitmap request has its own temporary canvas. Cancellation is checked before, between paint batches and after bitmap creation; a late bitmap is closed before rejecting.
 - `new RtfViewer(canvas)` owns documents it loads. Replacement aborts previous work and destroys the previous owned document. `RtfViewer.fromDocument(canvas, document)` borrows; load is forbidden in borrowed mode and viewer destroy leaves the document alive. Navigation is generation-guarded.
 
-Version 1.0 makes the two JavaScript API entry points, the deployment-asset subpath, and their exported runtime APIs, types, ownership rules, and option meanings the supported 1.x baseline. The semantic model and retained layout are public structured data rather than hidden internals. Existing fields and discriminated unions therefore cannot be removed or changed compatibly. New format support may add backward-compatible optional fields and diagnostic codes in a minor version. A required field or incompatible union addition requires a new major version and, for the semantic model, a new schema version. Consumers should retain an unknown/default path for newer persisted data and check `schemaVersion` when storing model snapshots.
+The [public API contract](api.md#public-api-and-versioning) defines 1.x compatibility for exports, model/layout fields and ownership rules. The semantic model's schema version is separate from npm release versions and the unpublished Rust crate version.
 
 ## Resource policy
 
@@ -71,7 +71,9 @@ Layout yields periodically so AbortSignal and UI events can run. Image decode pr
 
 ## Decisions and assumptions
 
-Use wasm-bindgen `--target web`, ESM assets, native module Workers, generated TS contracts and a Vite example. The installed-package experiment selected a narrow tested PNG/JPEG dimension-sniffer extraction. DOCX layout and the rtf.js top-level graph were rejected for runtime reuse; evidence is in reuse-evaluation.md. No submodule is required for ordinary package consumers.
+Use wasm-bindgen `--target web`, ESM assets, native module Workers, generated TS contracts and a Vite example. A local PNG/JPEG adapter imports the original upstream image sniffer through a shared esbuild/Vitest source alias. A compile-time assignment checks the narrow local declaration against the real upstream function; normal behavior tests cover malformed headers, dimensions and EXIF orientation. The implementation is bundled into the npm archive. DOCX layout and the rtf.js top-level graph remain outside the runtime dependency graph; evidence is in [reuse evaluation](reuse-evaluation.md). No submodule is required for npm consumers.
+
+Source development uses Node's native TypeScript execution for two small build configuration files, with separate compiler checks for browser, Worker and Node environments. The Worker resolves against wasm-bindgen's actual generated declaration through a TypeScript `rootDirs` overlay. Cargo owns declaration generation/checking directly. Standard pnpm/npm commands pack and install the archive, Playwright owns its consumer test, and Release Please owns version/changelog/tag generation.
 
 Verified in Chromium/Vite: installed-tarball Worker/WASM rewriting, common CJK display with explicit local fonts, and page/text geometry against one independently exported LibreOffice sample. Unverified assumptions: font metrics across Firefox/WebKit; other bundlers; realistic broad CJK/complex-script coverage; Word/TextEdit output; vector metafile fidelity; layout latency at configured upper limits. Common system font names alone cannot guarantee cross-platform pixel equality.
 

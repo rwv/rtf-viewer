@@ -1,11 +1,29 @@
-import { RtfDocument, type PageLayout } from 'rtf-viewer';
+import { RtfDocument, layoutDocument, pixelSize } from 'rtf-viewer';
+import type {
+  CanvasTarget, RtfInput, LoadOptions, RenderOptions, PageSize, TextFragment,
+  ImageFragment, Fragment, LineLayout, PageLayout, DocumentLayout, TextMetricsPt,
+  LayoutServices, LayoutOptions, Diagnostic, DocumentModel, TextStyle,
+} from 'rtf-viewer';
 import { RtfViewer } from 'rtf-viewer/viewer';
+// Compilation protects every supported type export in the installed package.
+export type PublicTypeContract = [
+  CanvasTarget, RtfInput, LoadOptions, RenderOptions, PageSize, TextFragment,
+  ImageFragment, Fragment, LineLayout, PageLayout, DocumentLayout, TextMetricsPt,
+  LayoutServices, LayoutOptions, Diagnostic, DocumentModel, TextStyle,
+];
 const check = (condition: unknown, message: string) => { if (!condition) throw new Error(message); };
 try {
   const lines = Array.from({ length: 24 }, (_, i) => `Line ${i + 1}\\par `).join('');
   const input = new TextEncoder().encode(String.raw`{\rtf1\ansi\paperw4320\paperh4320\margl360\margr360\margt360\margb360\fs24\sl-240 ` + lines + '}');
   const doc = await RtfDocument.load(input, { fonts: {} });
   check(doc.pageCount === 2, 'Expected two automatically laid-out pages');
+  const plainLayout = await layoutDocument(doc.model, {
+    measure: text => ({ width: text.length * 6, ascent: 9, descent: 3 }),
+    font: () => '12px serif',
+    imageSize: () => ({ width: 36, height: 36 }),
+  });
+  check(plainLayout.pages.length === 2, 'Public layoutDocument export must paginate');
+  check(pixelSize(plainLayout.pages[0], { ppi: 144 }).width === 432, 'Public pixelSize export must scale physical units');
   const geometry: PageLayout = doc.getPageLayout(0);
   check(geometry.lines.length === 15, 'Expected 15 lines on the first page');
   check(doc.getPageLayout(1).lines[0].fragments.some(f => f.kind === 'text' && f.text.includes('16')), 'Wrong continuation content');

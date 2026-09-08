@@ -21,7 +21,12 @@ export class BrowserResources implements LayoutServices {
     this.context.textBaseline = 'alphabetic';
     this.context.fontKerning = 'normal';
     this.context.direction = 'ltr';
-    this.names = new Map(model.fonts.map((font) => [font.id, options.fonts?.[font.name] ?? font.name]));
+    this.names = new Map(model.fonts.map((font) => {
+      const mapped = options.fonts && Object.hasOwn(options.fonts, font.name)
+        ? options.fonts[font.name]
+        : undefined;
+      return [font.id, typeof mapped === 'string' ? mapped : font.name];
+    }));
     document.fonts.addEventListener('loadingdone', this.fontListener);
   }
   font(style: TextStyle): string {

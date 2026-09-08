@@ -26,6 +26,21 @@ test('WASM understands Unicode, scoped styles, codepages and ignorable destinati
   expect(requests).toContain('200');
 });
 
+test('font mappings ignore inherited object properties', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { RtfDocument } = (window as any).__rtfTest;
+    const input = String.raw`{\rtf1{\fonttbl{\f0\fnil toString;}}\f0 Inherited font key\par}`;
+    const doc = await RtfDocument.load(new TextEncoder().encode(input), { fonts: {} });
+    const text = doc.getPageLayout(0).lines
+      .flatMap((line: any) => line.fragments)
+      .map((fragment: any) => fragment.text ?? '')
+      .join('');
+    doc.destroy();
+    return text;
+  });
+  expect(result).toBe('Inherited font key');
+});
+
 test('independent exact-line fixture paginates 15 + 9 with resolution-invariant geometry', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const { RtfDocument } = (window as any).__rtfTest;
