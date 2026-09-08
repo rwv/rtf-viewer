@@ -555,7 +555,10 @@ test('real LibreOffice table sample keeps producer column geometry and page coun
   // so the wrap points inside the cells agree.
   for (const line of result.text) expect(referenceText).toContain(line);
   expect(result.columns).toEqual([38.25, 88.5, 130.5]);
-  expect(result.headerColumns).toEqual([46.125, 95.75, 188.125]);
+  // The header row is centred, so its x depends on measured advance widths. Poppler reports
+  // 46.55 / 96.30 / 188.10 pt for the same three cells in the reference PDF.
+  for (const [index, reference] of [46.55, 96.3, 188.1].entries())
+    expect(Math.abs(result.headerColumns[index] - reference)).toBeLessThan(1);
   expect(result.rowEdges.length).toBeGreaterThanOrEqual(10);
   // Cell walls sit on the 36 / 86.25 / 128.25 / 266.25 pt boundaries; the two sides of an
   // inner boundary are declared with different widths, so each is centred on its own stroke.
