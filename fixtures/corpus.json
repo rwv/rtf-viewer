@@ -87,9 +87,9 @@
           "id": "lo-2523-line-box-above-ink-box",
           "classification": "font",
           "summary": "Retained line rectangles sit above the producer's ink boxes because a line box and a PDF ink box are not the same measurement.",
-          "measured": "Engine minus reference is -0.1 pt horizontally and between -0.6 and -2.2 pt vertically across the ten compared lines.",
+          "measured": "Engine minus reference is -0.1 pt horizontally and a constant -0.4 to -0.7 pt vertically across the nine compared markers, once the caller declares the 1.149902 em line box the Liberation faces carry. Without that declaration the vertical offset grows from -0.6 to -2.2 pt down the page, because Canvas reports ascent and descent without the font's line gap.",
           "status": "accepted",
-          "issue": 20
+          "issue": 44
         },
         {
           "id": "lo-2523-advance-width",
@@ -204,10 +204,10 @@
         {
           "id": "lo-2427-line-height",
           "classification": "font",
-          "summary": "Canvas reports a shorter line box than the producer uses for 10 pt Liberation Serif, so every table row is slightly short.",
-          "measured": "Row pitch is 23.50 pt in the engine and 24.15 pt in the reference; the 0.65 pt per row accumulates over eleven rows. The same line box shows up inside a row: centring the single-line cells of the two-line Note row offsets them by 5.50 pt against the reference's 5.75 pt.",
+          "summary": "Row pitch is short by 0.151 pt, down from 0.65 pt once the caller declares the line box; what is left is not the line box and is not yet attributed.",
+          "measured": "Row pitch is 23.999 pt in the engine with the declared 1.149902 em line box and 24.15 pt in the reference; it was 23.50 pt with the browser's own metrics. The declared box is confirmed exactly on the text document, where the producer's line pitch is 13.8 pt for 12 pt Liberation Serif against 1.149902 x 12 = 13.799. The remaining 0.151 pt per row is specific to the row box: the cells' top and bottom hairline borders account for about 0.10 pt of it by subtraction, and the rest is unexplained.",
           "status": "open",
-          "issue": 20
+          "issue": 44
         },
         {
           "id": "lo-2427-cell-content-inset",
@@ -220,10 +220,10 @@
         {
           "id": "lo-2427-row-split-point",
           "classification": "layout",
-          "summary": "Both split rows at a line boundary, but the accumulated line-height delta moves which row breaks and shifts the last page by one row.",
-          "measured": "The reference splits the Zone 01 row between pages 1 and 2 and ends page 3 with Total; the engine keeps Zone 01 whole and carries Zone 10 onto page 3. Both render three pages.",
+          "summary": "The first split now matches the producer; the residual row pitch still puts the last page one line ahead.",
+          "measured": "With the declared line box the engine splits the Zone 01 row between its two text lines and opens page 2 with the second, exactly as the reference does; with the browser's own metrics it kept Zone 01 whole. Page 3 still opens with the second line of Zone 09 where the reference opens with its first, which is the 0.151 pt per row of lo-2427-line-height accumulated over nine rows. Both render three pages.",
           "status": "open",
-          "issue": 20
+          "issue": 44
         },
         {
           "id": "lo-2427-collapsed-border-at-continuation",

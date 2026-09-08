@@ -728,6 +728,7 @@ test('real LibreOffice table sample keeps producer column geometry and page coun
           'Liberation Serif': 'Rtf Liberation Serif',
           'Liberation Sans': 'Rtf Liberation Sans',
         },
+        lineHeights: { 'Liberation Serif': 1.149902, 'Liberation Sans': 1.149902 },
       },
     );
     const first = doc.getPageLayout(0);
@@ -756,6 +757,17 @@ test('real LibreOffice table sample keeps producer column geometry and page coun
             .map((rule: any) => rule.x),
         ),
       ].sort((a: number, b: number) => a - b),
+      // The reference splits the Zone 01 row between its two text lines, so page two opens
+      // with the second one. That break point follows from the row pitch, not from the table.
+      lastOnPageOne: doc
+        .getPageLayout(0)
+        .lines.at(-1)!
+        .fragments.map((fragment: any) => fragment.text ?? '')
+        .join(''),
+      firstOnPageTwo: doc
+        .getPageLayout(1)
+        .lines[0].fragments.map((fragment: any) => fragment.text ?? '')
+        .join(''),
       // The row that starts on the last line of page one continues on page two.
       continued: doc.getPageLayout(1).decorations.filter((rule: any) => rule.width > rule.height)
         .length,
@@ -805,12 +817,55 @@ test('real LibreOffice table sample keeps producer column geometry and page coun
   // inner boundary are declared with different widths, so each is centred on its own stroke.
   expect(result.cellWalls).toEqual([35.625, 85.875, 86.125, 127.875, 128.125, 266.625]);
   expect(result.continued).toBeGreaterThan(0);
+  expect(result.lastOnPageOne).toBe('Row 01 continues the table past');
+  expect(result.firstOnPageTwo).toBe('the first page.');
   // Rasterising page two of the reference at 600 DPI puts a grey rule at exactly y 36.000 pt,
   // the top margin, spanning the table's 231 pt from 36 to 267. The engine closes the same edge:
   // its 0.25 pt hairline is centred on it, where the producer renders one device pixel below it.
   expect(result.continuationTop).toEqual([35.875, 36, 267]);
   // Vertical cell alignment is honoured, so this document reports no table diagnostic at all.
   expect(result.tableCodes).toEqual([]);
+});
+
+test('the line box scales with the font size and can be declared by the caller', async ({
+  page,
+}) => {
+  const result = await page.evaluate(async () => {
+    const { RtfDocument } = window.__rtfTest;
+    await document.fonts.load('10px "Rtf Liberation Serif"');
+    await document.fonts.load('40px "Rtf Liberation Serif"');
+    const source = String.raw`{\rtf1\ansi{\fonttbl{\f0 Liberation Serif;}}\f0\fs20 small\par\fs80 large\par}`;
+    const heights = async (options: Record<string, unknown>) => {
+      const doc = await RtfDocument.load(new TextEncoder().encode(source), {
+        fonts: { 'Liberation Serif': 'Rtf Liberation Serif' },
+        ...options,
+      });
+      const lines = doc.getPageLayout(0).lines.map((line: any) => line.height);
+      doc.destroy();
+      return lines;
+    };
+    return {
+      measured: await heights({}),
+      declared: await heights({ lineHeights: { 'Liberation Serif': 1.149902 } }),
+      ignored: await heights({ lineHeights: { Elsewhere: 2 } }),
+      inherited: await heights({ lineHeights: Object.create({ 'Liberation Serif': 4 }) }),
+    };
+  });
+  // A browser rounds font bounding box metrics to whole pixels, so measuring at the size the
+  // document asks for makes the line box depend on that size. Measured once per face and
+  // scaled, ten and forty point text differ by exactly the factor of four between them.
+  expect(result.measured[1] / result.measured[0]).toBeCloseTo(4, 6);
+  expect(result.declared[1] / result.declared[0]).toBeCloseTo(4, 6);
+  // Liberation Serif declares ascent, descent and line gap summing to 1.149902 em, which is
+  // what a producer lays out with; Canvas reports only the first two.
+  expect(result.declared[0]).toBeCloseTo(11.49902, 4);
+  expect(result.declared[1]).toBeCloseTo(45.99608, 4);
+  expect(result.measured[0]).toBeGreaterThan(11);
+  expect(result.measured[0]).toBeLessThan(11.2);
+  // A declaration for a font the document does not use changes nothing, and an inherited
+  // property is not a declaration.
+  expect(result.ignored).toEqual(result.measured);
+  expect(result.inherited).toEqual(result.measured);
 });
 
 test('real LibreOffice sample matches independent page/text geometry and nearby ink', async ({
@@ -832,6 +887,10 @@ test('real LibreOffice sample matches independent page/text geometry and nearby 
           'Liberation Serif': 'Rtf Liberation Serif',
           'Liberation Sans': 'Rtf Liberation Sans',
         },
+        // Every Liberation face declares ascent + descent + line gap of 1.149902 em. Canvas
+        // reports the first two and no browser exposes the third, so the application that
+        // ships these fonts declares the line box the producer laid out with.
+        lineHeights: { 'Liberation Serif': 1.149902, 'Liberation Sans': 1.149902 },
         fallbackFont: 'Rtf Free Sans',
       },
     );
@@ -905,9 +964,17 @@ test('real LibreOffice sample matches independent page/text geometry and nearby 
   expect(result.positions[5][0]).toBeCloseTo(72, 1);
   expect(result.actualInk / result.expectedInk).toBeGreaterThan(0.85);
   expect(result.actualInk / result.expectedInk).toBeLessThan(1.15);
+  // Poppler's y for the same eight markers in the producer's own PDF. With the declared line
+  // box the engine's offset from each is a constant, which is the line-box against ink-box
+  // difference; without it the offset grows down the page as the pitch falls behind.
+  const referenceY = [48.61, 69.31, 101.908, 115.708, 139.508, 153.308, 216.81, 249.408, 273.208];
+  const engineY = [0, 1, 2, 3, 4, 5, 8, 9, 10].map((index) => result.positions[index][1]);
+  const offsets = engineY.map((y, index) => y - referenceY[index]);
+  for (const offset of offsets) expect(offset).toBeGreaterThan(-0.7);
+  for (const offset of offsets) expect(offset).toBeLessThan(-0.4);
   // A 4-pixel neighborhood allows documented font/rasterizer shifts at 96 PPI.
   // Symmetric coverage plus exact text/line assertions rejects missing content.
-  expect(result.unmatchedRatio).toBeLessThan(0.02);
+  expect(result.unmatchedRatio).toBeLessThan(0.005);
   await test.info().attach('engine-libreoffice-page', {
     body: Buffer.from(result.png.split(',')[1], 'base64'),
     contentType: 'image/png',
