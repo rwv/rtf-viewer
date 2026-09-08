@@ -332,6 +332,115 @@
           "issue": 30
         }
       ]
+    },
+    {
+      "id": "libreoffice-24.2.7.2-metafile",
+      "producer": {
+        "application": "LibreOffice",
+        "version": "24.2.7.2",
+        "generator": "LibreOffice/24.2.7.2$Linux_X86_64 LibreOffice_project/420$Build-2",
+        "platform": "Ubuntu 24.04.4 LTS, x86-64",
+        "packages": [
+          "libreoffice-core 4:24.2.7-0ubuntu0.24.04.4",
+          "libreoffice-writer 4:24.2.7-0ubuntu0.24.04.6",
+          "fonts-liberation 1:2.1.5-3",
+          "poppler-utils 24.02.0-1ubuntu9.9"
+        ]
+      },
+      "features": [
+        "wmf-picture",
+        "embedded-emf-comment-records",
+        "picture-goal-dimensions",
+        "vector-image-diagnostic"
+      ],
+      "artifacts": [
+        {
+          "path": "fixtures/real/libreoffice-24.2-metafile-source.svg",
+          "kind": "source",
+          "sha256": "96637ea8fb080564993991e470a709ac25aa87e8034f21353924ed354e9fe58f",
+          "producedBy": "hand-written CC0 source"
+        },
+        {
+          "path": "fixtures/real/libreoffice-24.2-metafile-source.html",
+          "kind": "source",
+          "sha256": "4757453b33119b00f6bf28cf9c938ccc01940c8308901be6284038a60b52dad3",
+          "producedBy": "hand-written CC0 source"
+        },
+        {
+          "path": "fixtures/real/libreoffice-24.2.7.2-metafile.rtf",
+          "kind": "document",
+          "sha256": "acf17bc089c30d2bb80d4e1e5aea62430401de52a28c67281a48b86694ce08e2",
+          "producedBy": "LibreOffice 24.2.7.2 Rich Text Format filter"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-metafile.pdf",
+          "kind": "pdf",
+          "sha256": "564c1b5bf427321b7eb99399749c0f02db9fd43f88be086abe6183bea9b46ed7",
+          "producedBy": "LibreOffice 24.2.7.2 writer_pdf_Export"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-metafile.txt",
+          "kind": "text",
+          "sha256": "424b8b7f5710a99dbb3d0c0ae954fa66e8d13d1585c22511f384ab777a4c4415",
+          "producedBy": "pdftotext -layout, Poppler 24.02.0"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-metafile-page-1.png",
+          "kind": "image",
+          "sha256": "df69433fae2418d4534f0c5dc9bba9e777e9933d0c5bdba4db1fa4dd2ee4e457",
+          "producedBy": "pdftoppm -png -r 96, Poppler 24.02.0"
+        }
+      ],
+      "fonts": [
+        {
+          "family": "Liberation Serif",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+          "sha256": "705903ae1382f0150f115d6f10a30f5b2f3d6ade649c474afe6366c39174fb65"
+        },
+        {
+          "family": "Liberation Serif Bold",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
+          "sha256": "9e66c25e20868756bf12eb24a520a4552727c9cd108f577f7ae33e3c0110e39c"
+        },
+        {
+          "family": "Liberation Sans",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144"
+        },
+        {
+          "family": "Liberation Sans Bold",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+          "sha256": "3973aa5054fb467dd5627245d3dc82e37bf16fe075756156a570455871351582"
+        }
+      ],
+      "commands": [
+        "libreoffice -env:UserInstallation=\"file://$(mktemp -d)\" --headless --convert-to 'rtf:Rich Text Format' --outdir /tmp fixtures/real/libreoffice-24.2-metafile-source.html",
+        "libreoffice -env:UserInstallation=\"file://$(mktemp -d)\" --headless --convert-to 'pdf:writer_pdf_Export' --outdir fixtures/reference fixtures/real/libreoffice-24.2.7.2-metafile.rtf",
+        "pdftotext -layout fixtures/reference/libreoffice-24.2.7.2-metafile.pdf fixtures/reference/libreoffice-24.2.7.2-metafile.txt",
+        "pdftoppm -png -r 96 fixtures/reference/libreoffice-24.2.7.2-metafile.pdf fixtures/reference/libreoffice-24.2.7.2-metafile-page"
+      ],
+      "deltas": [
+        {
+          "id": "lo-2427-metafile-not-drawn",
+          "classification": "paint",
+          "summary": "The engine retains the metafile and draws a visible placeholder in the right rectangle; the producer draws the artwork.",
+          "measured": "The reference page has 10,556 non-white pixels in the picture area, dominated by the source colours #e6eef8, #205493 and #8a1f11. The engine retains 72,992 WMF bytes and an 89.84 x 59.54 pt rectangle and reports unsupported-vector-image.",
+          "status": "open",
+          "issue": 33
+        },
+        {
+          "id": "lo-2427-metafile-has-no-vector-records",
+          "classification": "parse",
+          "summary": "This producer's metafile carries no vector drawing records at all: both the WMF and the EMF inside its comment records contain only DIB blits.",
+          "measured": "The WMF plays two META_STRETCHDIB records; the 31,932-byte EMF reassembled from four MFCOMMENT records plays two EMR_STRETCHDIBITS records and nothing else. A vector renderer therefore cannot help this document; a DIB decoder can.",
+          "status": "accepted",
+          "issue": 33
+        }
+      ]
     }
   ]
 }

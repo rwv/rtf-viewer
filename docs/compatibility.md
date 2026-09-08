@@ -147,42 +147,56 @@ The engine resolves its numbering from the list table rather than from the cache
 
 The deeper level restarts under each parent and the override's start value of seven is honoured. The one recorded delta is that the producer pads its cached marker with a leading space the generated marker does not reproduce; the level template declares only the placeholder and a full stop, so that space is the producer's own padding rather than something the document asks for.
 
+## Real LibreOffice metafile artifact
+
+`fixtures/real/libreoffice-24.2.7.2-metafile.rtf` is a LibreOffice 24.2.7.2 export of a page holding one SVG drawing, written as `\wmetafile8`. Its provenance matches the table and list artifacts and is recorded in `fixtures/corpus.json`.
+
+The engine retains all 72,992 metafile bytes, resolves the authored 89.84 × 59.54 pt rectangle, reports `unsupported-vector-image` and draws its placeholder there. The producer's own PDF draws the artwork: 10,556 non-white pixels in that rectangle, dominated by the source colours `#e6eef8`, `#205493` and `#8a1f11`.
+
+The metafile turned out to contain no vector drawing records at all. Its own records are two `META_STRETCHDIB` blits; the 31,932-byte EMF reassembled from its four `MFCOMMENT` escape records holds two `EMR_STRETCHDIBITS` records and nothing else. Both rtf.js renderers return an empty SVG for it. The measurement and what follows from it are in the [reuse evaluation](reuse-evaluation.md); the short version is that a DIB decoder, not a vector renderer, is what this class of document needs.
+
 ## Artifact hashes
 
 These SHA-256 values identify the exact committed evidence. A regenerated PDF will normally differ because LibreOffice writes creation metadata; use the geometry and content assertions above when validating a new export.
 
-| File                                                       | SHA-256                                                            |
-| ---------------------------------------------------------- | ------------------------------------------------------------------ |
-| `scripts/generate-reference.py`                            | `2246552e6f595e4e045bda2ebf4396a40342f721e8a35f6b7ba7d3e8e7bb2728` |
-| `fixtures/synthetic/automatic-pagination.rtf`              | `a0ab18dee28ec428950996d17ff90264ee1117c0c18081155863b133b1639f82` |
-| `fixtures/synthetic/common-text-styles.rtf`                | `2e5b38277d97700e4c2ccf17207b5db0c4c3f979aed5c5b4d70af9484f8ad916` |
-| `fixtures/synthetic/explicit-pages.rtf`                    | `e8b1d2c5984eeeed2fba1e6a41251b25ba1fb21f7171a5495b86d6128f5ffe14` |
-| `fixtures/synthetic/indents-spacing.rtf`                   | `1a8e4000ab32d3f834efcb805269ca0b4ee19766c3e1078900ab607fadda048a` |
-| `fixtures/synthetic/inline-png-jpeg.rtf`                   | `a1d435caffb685306a6b164126d216c390e65275d58dcfadb7109a2a34224d0b` |
-| `fixtures/synthetic/list-numbering.rtf`                    | `4c0d798dd8788718865cbb725f7dd9d7385d987443c924fae68cd5e37dc42ab0` |
-| `fixtures/synthetic/ordinary-table.rtf`                    | `66ac0a4be1ff97861e245f0493d782f3d06e50773612865c8d0bcb5eceb9ee25` |
-| `fixtures/synthetic/table-cell-fill-align.rtf`             | `47a804b3e15697f9067536d665372ac5d4dfc4e3e92d3bb25aafb4f766802cf1` |
-| `fixtures/synthetic/table-merged-cells.rtf`                | `368fd13e24e8b6d9322fd676572ad2525b4e466a42aa24013fa8e1f25a7b0ef1` |
-| `fixtures/synthetic/showcase.rtf`                          | `5b95c4b96e83ae7753fe5d9d593e810ed3d6a49f6d30fa376307c3c4c519e198` |
-| `fixtures/synthetic/unicode-en-zh.rtf`                     | `a74d0d972f1691466cc5d66e466c4347bc4ecc14601af63c9adb4b78103935c1` |
-| `fixtures/synthetic/assets/inline-pattern.jpg`             | `956aacee65305f533bbc1b946d2b77e1dfca714c45c1bfb2159ced90bd9883e1` |
-| `fixtures/synthetic/assets/inline-pattern.png`             | `1e0d06ba4b5c8eb9ecac3da3ba1eb641aab369a28fabb5734575d98361fc77fa` |
-| `fixtures/real/libreoffice-25.2-source.html`               | `8020b119a4cf9084fe3b1d0953e2257e71a3dc5ecb3040b22343a3b50c6417df` |
-| `fixtures/real/libreoffice-25.2.3.2.rtf`                   | `5eb55a887fb0fef6efe445baf46a021e318af1abac1a938bf402090840e9c9d3` |
-| `fixtures/reference/libreoffice-25.2.3.2.pdf`              | `f63425a88eb3b54f48addb13b9e2b6003d442e3c442d46845cf7da9a1f3c515c` |
-| `fixtures/reference/libreoffice-25.2.3.2.txt`              | `5f2bab1f375c329a9fc04eb34bae4b3bb1f89fb2a4c240634621bb97319de5a6` |
-| `fixtures/reference/libreoffice-25.2.3.2-page-1.png`       | `077a4b322e3bc87723033ee0bac4c630ffe46decaf57b3c9f798b214e99bf829` |
-| `fixtures/real/libreoffice-24.2-table-source.html`         | `8c1a4272b8502ae484bcf284cd40a60c19c6e4c4172a805595dfab0e68bf8728` |
-| `fixtures/real/libreoffice-24.2.7.2-table.rtf`             | `30591ba1660f61583c23d676805181a024d4f411d3ca10d8aeed62f2c7cdc966` |
-| `fixtures/reference/libreoffice-24.2.7.2-table.pdf`        | `4ef3f8091d1e1b81f30e819d935ca1ce53d6f5169ae9202483b643f6c4907a1c` |
-| `fixtures/reference/libreoffice-24.2.7.2-table.txt`        | `62f28edfc19ed06112238c83476c20feb0ef901ea0ef4a884d089eba1518076b` |
-| `fixtures/reference/libreoffice-24.2.7.2-table-page-1.png` | `3ba02f5d16f6133b3c9d8f93c5cece45c5602efe4c99294e978282678bee7fa3` |
-| `fixtures/reference/libreoffice-24.2.7.2-table-page-2.png` | `b7c9dc3184b5a24b3de74a4b47ccda04765109371a0f584f33e02c3e9eb26946` |
-| `fixtures/reference/libreoffice-24.2.7.2-table-page-3.png` | `b2c4346c6c1ec2eaf7fc2aad2027fb46f95f0643fda6a7fe93081a0afc5c59e9` |
-| `fixtures/real/libreoffice-24.2-list-source.html`          | `812372516d0603ffe72429f0fdfb76ae7876bba9bb062595470615206203363b` |
-| `fixtures/real/libreoffice-24.2.7.2-list.rtf`              | `bfb36cebd2ca9e9318f59a8f392a2ffe21d7001cc61581cc143561e493eaf290` |
-| `fixtures/reference/libreoffice-24.2.7.2-list.pdf`         | `949fa19f4befef6b0a6012c7800cd5b60059b64c739d84861045bb566978d703` |
-| `fixtures/reference/libreoffice-24.2.7.2-list.txt`         | `26e2886a7bd5ca99aa50f2281609894acdd4df33881c72832e633070001460c4` |
-| `fixtures/reference/libreoffice-24.2.7.2-list-page-1.png`  | `35ccaedee29101b41c17ccf8e87ac3cd86bc9a41a8731caac7815ec418ec0a92` |
+| File                                                          | SHA-256                                                            |
+| ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `scripts/generate-reference.py`                               | `2246552e6f595e4e045bda2ebf4396a40342f721e8a35f6b7ba7d3e8e7bb2728` |
+| `fixtures/synthetic/automatic-pagination.rtf`                 | `a0ab18dee28ec428950996d17ff90264ee1117c0c18081155863b133b1639f82` |
+| `fixtures/synthetic/common-text-styles.rtf`                   | `2e5b38277d97700e4c2ccf17207b5db0c4c3f979aed5c5b4d70af9484f8ad916` |
+| `fixtures/synthetic/explicit-pages.rtf`                       | `e8b1d2c5984eeeed2fba1e6a41251b25ba1fb21f7171a5495b86d6128f5ffe14` |
+| `fixtures/synthetic/indents-spacing.rtf`                      | `1a8e4000ab32d3f834efcb805269ca0b4ee19766c3e1078900ab607fadda048a` |
+| `fixtures/synthetic/inline-png-jpeg.rtf`                      | `a1d435caffb685306a6b164126d216c390e65275d58dcfadb7109a2a34224d0b` |
+| `fixtures/synthetic/list-numbering.rtf`                       | `4c0d798dd8788718865cbb725f7dd9d7385d987443c924fae68cd5e37dc42ab0` |
+| `fixtures/synthetic/ordinary-table.rtf`                       | `66ac0a4be1ff97861e245f0493d782f3d06e50773612865c8d0bcb5eceb9ee25` |
+| `fixtures/synthetic/table-cell-fill-align.rtf`                | `47a804b3e15697f9067536d665372ac5d4dfc4e3e92d3bb25aafb4f766802cf1` |
+| `fixtures/synthetic/table-merged-cells.rtf`                   | `368fd13e24e8b6d9322fd676572ad2525b4e466a42aa24013fa8e1f25a7b0ef1` |
+| `fixtures/synthetic/showcase.rtf`                             | `5b95c4b96e83ae7753fe5d9d593e810ed3d6a49f6d30fa376307c3c4c519e198` |
+| `fixtures/synthetic/unicode-en-zh.rtf`                        | `a74d0d972f1691466cc5d66e466c4347bc4ecc14601af63c9adb4b78103935c1` |
+| `fixtures/synthetic/assets/inline-pattern.jpg`                | `956aacee65305f533bbc1b946d2b77e1dfca714c45c1bfb2159ced90bd9883e1` |
+| `fixtures/synthetic/assets/inline-pattern.png`                | `1e0d06ba4b5c8eb9ecac3da3ba1eb641aab369a28fabb5734575d98361fc77fa` |
+| `fixtures/real/libreoffice-25.2-source.html`                  | `8020b119a4cf9084fe3b1d0953e2257e71a3dc5ecb3040b22343a3b50c6417df` |
+| `fixtures/real/libreoffice-25.2.3.2.rtf`                      | `5eb55a887fb0fef6efe445baf46a021e318af1abac1a938bf402090840e9c9d3` |
+| `fixtures/reference/libreoffice-25.2.3.2.pdf`                 | `f63425a88eb3b54f48addb13b9e2b6003d442e3c442d46845cf7da9a1f3c515c` |
+| `fixtures/reference/libreoffice-25.2.3.2.txt`                 | `5f2bab1f375c329a9fc04eb34bae4b3bb1f89fb2a4c240634621bb97319de5a6` |
+| `fixtures/reference/libreoffice-25.2.3.2-page-1.png`          | `077a4b322e3bc87723033ee0bac4c630ffe46decaf57b3c9f798b214e99bf829` |
+| `fixtures/real/libreoffice-24.2-table-source.html`            | `8c1a4272b8502ae484bcf284cd40a60c19c6e4c4172a805595dfab0e68bf8728` |
+| `fixtures/real/libreoffice-24.2.7.2-table.rtf`                | `30591ba1660f61583c23d676805181a024d4f411d3ca10d8aeed62f2c7cdc966` |
+| `fixtures/reference/libreoffice-24.2.7.2-table.pdf`           | `4ef3f8091d1e1b81f30e819d935ca1ce53d6f5169ae9202483b643f6c4907a1c` |
+| `fixtures/reference/libreoffice-24.2.7.2-table.txt`           | `62f28edfc19ed06112238c83476c20feb0ef901ea0ef4a884d089eba1518076b` |
+| `fixtures/reference/libreoffice-24.2.7.2-table-page-1.png`    | `3ba02f5d16f6133b3c9d8f93c5cece45c5602efe4c99294e978282678bee7fa3` |
+| `fixtures/reference/libreoffice-24.2.7.2-table-page-2.png`    | `b7c9dc3184b5a24b3de74a4b47ccda04765109371a0f584f33e02c3e9eb26946` |
+| `fixtures/reference/libreoffice-24.2.7.2-table-page-3.png`    | `b2c4346c6c1ec2eaf7fc2aad2027fb46f95f0643fda6a7fe93081a0afc5c59e9` |
+| `fixtures/real/libreoffice-24.2-list-source.html`             | `812372516d0603ffe72429f0fdfb76ae7876bba9bb062595470615206203363b` |
+| `fixtures/real/libreoffice-24.2.7.2-list.rtf`                 | `bfb36cebd2ca9e9318f59a8f392a2ffe21d7001cc61581cc143561e493eaf290` |
+| `fixtures/reference/libreoffice-24.2.7.2-list.pdf`            | `949fa19f4befef6b0a6012c7800cd5b60059b64c739d84861045bb566978d703` |
+| `fixtures/reference/libreoffice-24.2.7.2-list.txt`            | `26e2886a7bd5ca99aa50f2281609894acdd4df33881c72832e633070001460c4` |
+| `fixtures/reference/libreoffice-24.2.7.2-list-page-1.png`     | `35ccaedee29101b41c17ccf8e87ac3cd86bc9a41a8731caac7815ec418ec0a92` |
+| `fixtures/real/libreoffice-24.2-metafile-source.svg`          | `96637ea8fb080564993991e470a709ac25aa87e8034f21353924ed354e9fe58f` |
+| `fixtures/real/libreoffice-24.2-metafile-source.html`         | `4757453b33119b00f6bf28cf9c938ccc01940c8308901be6284038a60b52dad3` |
+| `fixtures/real/libreoffice-24.2.7.2-metafile.rtf`             | `acf17bc089c30d2bb80d4e1e5aea62430401de52a28c67281a48b86694ce08e2` |
+| `fixtures/reference/libreoffice-24.2.7.2-metafile.pdf`        | `564c1b5bf427321b7eb99399749c0f02db9fd43f88be086abe6183bea9b46ed7` |
+| `fixtures/reference/libreoffice-24.2.7.2-metafile.txt`        | `424b8b7f5710a99dbb3d0c0ae954fa66e8d13d1585c22511f384ab777a4c4415` |
+| `fixtures/reference/libreoffice-24.2.7.2-metafile-page-1.png` | `df69433fae2418d4534f0c5dc9bba9e777e9933d0c5bdba4db1fa4dd2ee4e457` |
 
 No Microsoft Word or Apple TextEdit producer artifact is included because neither producer was available. Their compatibility remains unverified; no handcrafted fixture is labeled as either producer. See [corpus](corpus.md) for how to add one.

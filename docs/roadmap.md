@@ -30,7 +30,7 @@ The issue #21 slice replaces the table text fallback with real row and cell geom
 
 ## M3 boundaries that must be explicit
 
-Vertically merged cells, nested tables, repeated header rows and keep-together rows are distinct features from ordinary tables and are not implied by them. Horizontal merges are implemented: a `\clmrg` continuation folds into the cell that starts the range. Split rows and rows taller than a page are implemented: a row that does not fit continues at a line boundary and each fragment is drawn as a closed box. Lists model numbering semantics: the cached list text is used only where no definition resolves. Inline PNG/JPEG does not imply WMF/EMF or arbitrary DrawingML shapes. WMF/EMF evaluation must include rtf.js's separate renderers and licenses, including production import behavior and unsupported record visibility.
+Vertically merged cells, nested tables, repeated header rows and keep-together rows are distinct features from ordinary tables and are not implied by them. Horizontal merges are implemented: a `\clmrg` continuation folds into the cell that starts the range. Split rows and rows taller than a page are implemented: a row that does not fit continues at a line boundary and each fragment is drawn as a closed box. Lists model numbering semantics: the cached list text is used only where no definition resolves. Inline PNG/JPEG does not imply WMF/EMF or arbitrary DrawingML shapes. WMF/EMF evaluation must include rtf.js's separate renderers and licenses, including production import behavior and unsupported record visibility. That evaluation has now been run against a real producer metafile; see [reuse evaluation](reuse-evaluation.md).
 
 Editing, source-format saving and round-trip fidelity are outside the read-only project. Embedded objects are not executed.
 
@@ -40,7 +40,7 @@ Editing, source-format saving and round-trip fidelity are outside the read-only 
 2. Vertically merged cells and nested tables, both of which need cell spans that a row-independent layout cannot express today. Horizontal merges, alignment and shading are done.
 3. Close the `lo-2427-line-height` corpus delta. The engine's line box is 0.65 pt shorter per row than the producer's for 10 pt Liberation Serif, which is a measurement question, not a table question, and it moves page breaks in long documents.
 4. Grow the producer corpus, prioritizing permission-cleared Word and TextEdit files and list/image cases. Every new document needs provenance and classified deltas in `fixtures/corpus.json`; see [corpus](corpus.md).
-5. Implement a bounded WMF/EMF adapter after auditing rtf.js's separate renderers and upstream GDI players for record diagnostics. Public imports and bundle costs are already measured; raster placeholders must remain visible until a decoder is validated.
+5. Decode the DIB carried by `META_STRETCHDIB` and `EMR_STRETCHDIBITS` into a bitmap, reusing the existing picture pipeline. Issue #33 measured that the one real metafile in the corpus contains no vector records at all and that both rtf.js renderers return an empty picture for it, so a vector renderer is not the first slice. Placeholders stay visible until a decoder is validated, because an empty picture is worse than a placeholder.
 6. Picture bullets and numbering that depends on stylesheet inheritance, both of which need the stylesheet cascade first.
 7. Expand the installed-package gate to additional bundlers and platforms; retain the Chromium/Firefox/WebKit production checks as the browser baseline.
 

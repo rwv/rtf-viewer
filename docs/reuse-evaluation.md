@@ -149,6 +149,47 @@ This project must share one explicit font configuration between measurement and
 paint, so lifting an isolated measurement function now would not establish the
 required ownership or invalidation contract.
 
+## WMF and EMF verified against a real producer sample
+
+The comparison below was made against the project's public sample. Issue #33 repeated it against
+a metafile a real application actually emitted into an RTF, because a renderer's behaviour on a
+curated sample says nothing about the document a user brings.
+
+`fixtures/real/libreoffice-24.2.7.2-metafile.rtf` is a LibreOffice 24.2.7.2 export of a page
+containing one SVG drawing. LibreOffice wrote it as `\wmetafile8`. The engine retains all 72,992
+bytes, resolves the authored 89.84 × 59.54 pt rectangle, reports `unsupported-vector-image` and
+draws its placeholder there. The producer's own PDF draws the artwork: 10,556 non-white pixels in
+that rectangle, dominated by the source colours `#e6eef8`, `#205493` and `#8a1f11`.
+
+Both rtf.js renderers were then run in Chromium against the exact bytes the parser extracts,
+with `loggingEnabled(true)` so the record trace is evidence rather than inference.
+
+| Renderer         | Input                                   | Result                     | Shapes in the SVG |
+| ---------------- | --------------------------------------- | -------------------------- | ----------------: |
+| `WMFJS.Renderer` | the 72,992-byte WMF as extracted        | an `<svg>` with no content |                 0 |
+| `EMFJS.Renderer` | the 31,932-byte EMF inside its comments | an `<svg>` with no content |                 0 |
+
+The traces explain why, and the explanation is more useful than the result. The WMF's drawing
+records are two `META_STRETCHDIB` blits. Its four `MFCOMMENT` escape records carry an embedded
+EMF, which rtf.js's WMF renderer reads and ignores; reassembling that EMF by hand yields two
+`EMR_STRETCHDIBITS` records, an `EMR_SETROP2` and three comments. **Neither metafile contains a
+single vector drawing record.** LibreOffice rasterised the SVG and wrapped the bitmap in a
+metafile.
+
+Three conclusions follow, and they change the plan rather than confirm it:
+
+1. Adopting either renderer as-is would replace a visible placeholder with an empty picture. That
+   is a regression, not partial support: the placeholder at least tells a reader that something is
+   there and is missing.
+2. For this class of document the useful capability is not a vector renderer at all. It is
+   decoding the DIB carried by `META_STRETCHDIB` and `EMR_STRETCHDIBITS` into an `ImageBitmap`,
+   which is a bounded raster task that reuses the picture pipeline that already exists.
+3. A vector renderer still matters for metafiles that do carry vector records, and nothing here
+   measures those. That case needs its own producer sample before any renderer is adopted.
+
+The size, licence and record-coverage analysis below stands unchanged; this section only adds
+what a real sample does.
+
 ## WMF and EMF evaluation
 
 rtf.js has real public renderer classes:
@@ -184,13 +225,13 @@ its own record support matrix and diagnostics.
 
 ## Original v1 route decision
 
-| Route                                 | Result                                                                                                                                        | Decision                         |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `@silurus/ooxml` npm dependency       | Supported `DocxDocument` works, but small core helpers are unpublished and the DOCX graph emits large JS/WASM/Worker assets                   | Reject for runtime reuse         |
-| Whole OOXML engine via submodule/fork | Would require the upstream build and adaptation of its DOCX semantics                                                                         | Reject for full-engine reuse     |
-| Attributed source subset              | Pure byte inspection is isolated, testable, and useful before browser decode                                                                  | Adopt PNG/JPEG subset only       |
-| `rtf.js` npm dependency               | WMF renderer works in Chromium, but the supported import is large, DOM/SVG-bound, and silently skips many records                             | Defer/reject for initial runtime |
-| rtf.js source/submodule               | Avoids the top-level bundle but imports a 6,726-line, 248,919-byte WMF/EMF/SVG subsystem that needs new diagnostics and ownership integration | Defer                            |
+| Route                                 | Result                                                                                                                                                                     | Decision                       |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `@silurus/ooxml` npm dependency       | Supported `DocxDocument` works, but small core helpers are unpublished and the DOCX graph emits large JS/WASM/Worker assets                                                | Reject for runtime reuse       |
+| Whole OOXML engine via submodule/fork | Would require the upstream build and adaptation of its DOCX semantics                                                                                                      | Reject for full-engine reuse   |
+| Attributed source subset              | Pure byte inspection is isolated, testable, and useful before browser decode                                                                                               | Adopt PNG/JPEG subset only     |
+| `rtf.js` npm dependency               | WMF renderer works in Chromium, but the supported import is large, DOM/SVG-bound, and silently skips many records. On the real producer sample it returns an empty picture | Reject for this document class |
+| rtf.js source/submodule               | Avoids the top-level bundle but imports a 6,726-line, 248,919-byte WMF/EMF/SVG subsystem that needs new diagnostics and ownership integration                              | Defer                          |
 
 ## Original v1 source extraction
 
