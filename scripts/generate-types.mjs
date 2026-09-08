@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 const local = join(homedir(), '.cargo/bin/cargo');
-const result = spawnSync(existsSync(local) ? local : 'cargo', ['run', '--quiet', '-p', 'rtf-parser', '--example', 'generate_types'], { encoding: 'utf8' });
+const result = spawnSync(existsSync(local) ? local : 'cargo', ['run', '--locked', '--quiet', '-p', 'rtf-parser', '--example', 'generate_types'], { encoding: 'utf8' });
 if (result.status !== 0) { process.stderr.write(result.stderr); process.exit(1); }
 const path = 'packages/rtf-viewer/src/generated/model.ts';
 if (process.argv.includes('--check')) {

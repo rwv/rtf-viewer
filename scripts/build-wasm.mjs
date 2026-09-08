@@ -10,5 +10,5 @@ const run = (name, args) => {
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
 mkdirSync('packages/rtf-viewer/.wasm', { recursive: true });
-run('cargo', ['build', '-p', 'rtf-parser', '--release', '--target', 'wasm32-unknown-unknown']);
+run('cargo', ['build', '--locked', '-p', 'rtf-parser', '--release', '--target', 'wasm32-unknown-unknown']);
 run('wasm-bindgen', ['target/wasm32-unknown-unknown/release/rtf_parser.wasm', '--target', 'web', '--out-dir', 'packages/rtf-viewer/.wasm', '--out-name', 'rtf_parser']);

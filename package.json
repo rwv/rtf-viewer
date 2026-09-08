@@ -15,10 +15,13 @@
     "dev": "pnpm build:lib && pnpm --filter @rtf-viewer/example dev --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:rust": "node scripts/cargo.mjs test --workspace",
+    "test:rust": "node scripts/cargo.mjs test --workspace --locked",
     "test:browser": "playwright test",
     "test:package": "node scripts/test-package.mjs",
-    "check": "pnpm test:rust && pnpm check:contract && pnpm test && pnpm build && pnpm typecheck && pnpm test:browser && pnpm test:package"
+    "test:release": "node --test scripts/release.test.mjs",
+    "pack": "node scripts/package.mjs",
+    "release:check": "node scripts/release-info.mjs",
+    "check": "pnpm test:rust && pnpm check:contract && pnpm test && pnpm test:release && pnpm build && pnpm typecheck && pnpm test:browser && pnpm test:package"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

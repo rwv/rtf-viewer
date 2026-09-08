@@ -11,4 +11,4 @@ await build({
 });
 await cp(`${base}/.wasm/rtf_parser.js`, `${base}/dist/rtf_parser.js`);
 await cp(`${base}/.wasm/rtf_parser_bg.wasm`, `${base}/dist/rtf_parser_bg.wasm`);
-for (const name of ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) await cp(name, `${base}/${name}`);
+for (const name of ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md']) await cp(name, `${base}/${name}`);

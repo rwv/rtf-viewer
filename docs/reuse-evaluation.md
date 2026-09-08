@@ -1,6 +1,6 @@
 # Upstream reuse evaluation
 
-Status: complete for the initial English-only viewer. The decision is to reuse a
+Status: complete for the v1 browser viewer. The decision is to reuse a
 small attributed source subset for PNG/JPEG header inspection and to keep the
 RTF parser, layout engine, and WMF/EMF work independent.
 
@@ -127,7 +127,7 @@ runtime. The headless name does not make its model format-neutral.
 
 The Unicode pair and kinsoku helpers are cleaner source candidates, but they
 carry a generated Unicode 17 line-break table or East Asian policy that the
-initial English-only scope does not need. They remain a reference for a later
+v1 scope does not need. They remain a reference for a later
 international line-breaking milestone, when their Unicode-version provenance
 and generated tables can be evaluated as a coherent unit.
 

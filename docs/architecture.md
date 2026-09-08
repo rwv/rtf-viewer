@@ -1,6 +1,6 @@
 # Architecture
 
-Status: implemented initial M0–M2 rendering path, with partial format coverage listed in the support matrix. Future sections in this document are labeled M3 or later.
+Status: implemented v1 M0–M2 rendering path, with partial format coverage listed in the support matrix. Future sections in this document are labeled M3 or later.
 
 ## Boundaries and flow
 
@@ -61,9 +61,11 @@ M3 adds actual row/cell semantics, measured table fragments and row continuation
 - Different canvas targets can render concurrently. Concurrent work on one canvas rejects to avoid races. Each bitmap request has its own temporary canvas. Cancellation is checked before, between paint batches and after bitmap creation; a late bitmap is closed before rejecting.
 - `new RtfViewer(canvas)` owns documents it loads. Replacement aborts previous work and destroys the previous owned document. `RtfViewer.fromDocument(canvas, document)` borrows; load is forbidden in borrowed mode and viewer destroy leaves the document alive. Navigation is generation-guarded.
 
+Version 1.0 makes the two JavaScript API entry points, the deployment-asset subpath, and their exported runtime APIs, types, ownership rules, and option meanings the supported 1.x baseline. The semantic model and retained layout are public structured data rather than hidden internals. Existing fields and discriminated unions therefore cannot be removed or changed compatibly. New format support may add backward-compatible optional fields and diagnostic codes in a minor version. A required field or incompatible union addition requires a new major version and, for the semantic model, a new schema version. Consumers should retain an unknown/default path for newer persisted data and check `schemaVersion` when storing model snapshots.
+
 ## Resource policy
 
-Initial hard defaults: 16 MiB input, 256 nesting depth, 2 million tokens, 2 million decoded text units, 100,000 paragraphs, 256 embedded images, 8 MiB per image, 32 million decoded image pixels in total, 2,000 pages, and 32 million pixels per output canvas. Additional bounds are 16,384 graphemes per unbroken token, 2,048 pt font size/baseline magnitude and 14,400 pt paper/image dimensions. Each output axis is at most 32,767 pixels. Reject nonfinite/invalid geometry and output parameters. Diagnostics are deduplicated and bounded. These are engineering limits, not RTF specification maxima.
+Initial hard defaults: 16 MiB input, 256 nesting depth, 2 million tokens, 2 million decoded text units, 100,000 blocks including page breaks, 256 embedded images, 8 MiB per image, 32 million decoded image pixels in total, 2,000 pages, and 32 million pixels per output canvas. Additional bounds are 16,384 graphemes per unbroken token, 2,048 pt font size/baseline magnitude and 14,400 pt paper/image dimensions. Each output axis is at most 32,767 pixels. Reject nonfinite/invalid geometry and output parameters. Diagnostics are deduplicated and bounded. These are engineering limits, not RTF specification maxima.
 
 Layout yields periodically so AbortSignal and UI events can run. Image decode promises are not intrinsically abortable; late decoded resources are always closed. Worker parsing timeout and byte bounds prevent a corrupt file from pinning the main thread. OLE and external-field content is never executed or fetched.
 

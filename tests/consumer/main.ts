@@ -20,7 +20,15 @@ try {
   viewer.destroy();
   check(!doc.destroyed, 'Borrowed viewer destroyed engine');
   doc.destroy(); doc.destroy();
-  (window as unknown as { consumerResult: unknown }).consumerResult = { ok: true, pages: 2, lines: geometry.lines.length, bitmap: [432, 432] };
+  const manual = await RtfDocument.load(input, {
+    workerUrl: new URL('./rtf-assets/parser.worker.js', location.href),
+    wasmUrl: new URL('./rtf-assets/rtf_parser_bg.wasm', location.href),
+  });
+  check(manual.pageCount === 2, 'Explicit asset URLs changed pagination');
+  await manual.renderPage(canvas, 1, { ppi: 144 });
+  check(canvas.width === 432 && manual.getPageLayout(1).lines.length === 9, 'Explicit asset URL rendering failed');
+  manual.destroy();
+  (window as unknown as { consumerResult: unknown }).consumerResult = { ok: true, pages: 2, lines: geometry.lines.length, bitmap: [432, 432], explicitAssets: true };
 } catch (error) {
   (window as unknown as { consumerResult: unknown }).consumerResult = { ok: false, message: String(error), stack: error instanceof Error ? error.stack : '' };
 }

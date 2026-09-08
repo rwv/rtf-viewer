@@ -16,7 +16,9 @@ Inject a deterministic measurer into layout tests. Assert source text preservati
 
 Playwright loads a production-built example. Explicitly load fixed local test fonts. Check text metrics, representative pixel locations, Canvas dimensions, ImageBitmap dimensions/close, Worker parse output, AbortError, repeated destroy, late-resource disposal, canvas contention and viewer ownership. Exercise file upload, page navigation, zoom and PNG download. Track requests so required WASM/Worker assets return successfully and no third-party resources are fetched.
 
-A separate temporary consumer installs the `.tgz` produced by `pnpm pack`, compiles the public declarations, builds with Vite and executes headless API tests against its production output. It must resolve JS, Worker and WASM from the installed package and not reach into this repository. Consumers do not install Rust or initialize submodules.
+A separate temporary consumer uses `npm install --ignore-scripts` to install the `.tgz` produced by `pnpm pack`, compiles the public declarations, builds with Vite and executes headless API tests against its production output at `/viewer/`. Both automatic asset discovery and explicit Worker/WASM URLs must work from the installed package without reaching into this repository. Consumers do not install Rust or initialize submodules. The report records the archive SHA-256; publication verifies those same bytes.
+
+`pnpm test:release` checks the release boundary with temporary Git repositories: matching tags and dated changelog extraction succeed, mismatched tags and unmerged commits reject, and changed archive bytes reject after consumer verification.
 
 ## Fixtures and provenance
 
@@ -36,7 +38,7 @@ The final implementation report must record actual commands, versions, pass/fail
 
 ## Current executable gates
 
-`pnpm check` runs native Rust tests, generated-contract drift verification, Vitest geometry/resource tests, library/example build, TypeScript checking, production Playwright tests and a newly installed tarball consumer. CI also checks Rust formatting and clippy. Browser integration invokes the real compiled Rust parser.
+`pnpm check` runs native Rust tests, generated-contract drift verification, Vitest geometry/resource tests, release guards, library/example build, TypeScript checking, production Playwright tests and a newly installed tarball consumer. CI also checks Rust formatting and clippy. Cargo builds, tests, and contract generation use the committed lockfile with `--locked`. Browser integration invokes the real compiled Rust parser.
 
 The independent visual test compares the actual LibreOffice-generated reference PNG with engine ink using a documented four-pixel neighborhood at 96 PPI, paired with exact line text, page count, physical size and indent assertions. It is a tolerant regression check for one known producer document, not a general fidelity score. No project-generated image is used as its own correctness oracle.
 

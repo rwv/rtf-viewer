@@ -1,15 +1,24 @@
 {
   "name": "rtf-viewer",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Browser-only RTF document engine with Rust/WASM parsing and paginated Canvas output",
   "license": "MIT",
+  "author": "rwv",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rwv/rtf-viewer.git",
+    "directory": "packages/rtf-viewer"
+  },
+  "homepage": "https://github.com/rwv/rtf-viewer#readme",
+  "bugs": { "url": "https://github.com/rwv/rtf-viewer/issues" },
+  "keywords": ["rtf", "viewer", "canvas", "wasm", "pagination", "browser"],
+  "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org/" },
   "type": "module",
   "sideEffects": false,
-  "files": ["dist", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
+  "files": ["dist", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "CHANGELOG.md"],
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./viewer": { "types": "./dist/viewer.d.ts", "import": "./dist/viewer.js" },
     "./assets/*": "./dist/*"
-  },
-  "engines": { "node": ">=22.12" }
+  }
 }

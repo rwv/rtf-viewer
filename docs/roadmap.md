@@ -1,6 +1,6 @@
 # Roadmap
 
-The long-term target is a specification-backed browser viewer with steadily improving fidelity. The first delivery is M0–M2, followed by the independently testable M3 slices below. No milestone is complete merely because its interfaces exist.
+The long-term target is a specification-backed browser viewer with steadily improving fidelity. Version 1.0 establishes the M0–M2 API and rendering baseline, followed by the independently testable M3 slices below. No milestone is complete merely because its interfaces exist.
 
 | Milestone | Dependencies | Deliverable | Acceptance | Current status |
 | --- | --- | --- | --- | --- |
@@ -34,7 +34,7 @@ The long-term target is a specification-backed browser viewer with steadily impr
 
 Merged cells, nested tables, split rows and rows taller than a page are distinct features. Basic tables are incomplete until normal cell content and cross-page behavior work. Lists must model numbering semantics; displaying cached list text is only partial support. Inline PNG/JPEG does not imply WMF/EMF or arbitrary DrawingML shapes. WMF/EMF evaluation must include rtf.js's separate renderers and licenses, including production import behavior and unsupported record visibility.
 
-Editing, source-format saving and round-trip fidelity are outside the initial read-only project. Embedded objects are not executed.
+Editing, source-format saving and round-trip fidelity are outside the read-only project. Embedded objects are not executed.
 
 ## Next concrete work
 
