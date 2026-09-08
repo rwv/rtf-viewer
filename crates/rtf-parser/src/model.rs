@@ -66,6 +66,11 @@ pub enum Block {
         runs: Vec<Run>,
         style: ParagraphStyle,
         mark_style: TextStyle,
+        /// Absent unless the paragraph belongs to a list whose definition resolved. Optional so
+        /// that a model written by an older minor release still satisfies the public type.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        list_marker: Option<ListMarker>,
     },
     PageBreak,
     /// One ordinary table row. Cells are ordered left to right and never overlap.
@@ -277,6 +282,26 @@ pub struct TableCell {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub shading: Option<CellShading>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub enum LevelFollow {
+    Tab,
+    Space,
+    Nothing,
+}
+
+/// A paragraph's list marker, already resolved against the document's list tables and the
+/// running counters. Counters are document-order state, so the parser owns them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct ListMarker {
+    pub text: String,
+    pub follow: LevelFollow,
+    pub level: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

@@ -399,17 +399,155 @@ fn nested_picture_is_skipped_without_losing_outer_parser_state() {
     );
 }
 
+fn markers(model: &rtf_parser::DocumentModel) -> Vec<String> {
+    model
+        .blocks
+        .iter()
+        .filter_map(|block| match block {
+            Block::Paragraph { list_marker, .. } => {
+                list_marker.as_ref().map(|marker| marker.text.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// One list, one level, with the level's number format and template supplied by the caller.
+fn numbered(nfc: i32, template: &str, numbers: &str, items: usize) -> rtf_parser::DocumentModel {
+    let body: String = (0..items).map(|_| "\\ls1\\ilvl0 x\\par ").collect();
+    model(
+        format!(
+            "{{\\rtf1{{\\*\\listtable{{\\list{{\\listlevel\\levelnfc{nfc}\\levelstartat1{{\\leveltext {template};}}{{\\levelnumbers{numbers};}}}}\\listid1}}}}{{\\*\\listoverridetable{{\\listoverride\\listid1\\ls1}}}}{body}}}"
+        )
+        .as_bytes(),
+    )
+}
+
+#[test]
+fn list_number_formats_render_their_own_sequences() {
+    // \'02 is the template length, \'00 the placeholder for level 0, then a literal full stop.
+    assert_eq!(
+        markers(&numbered(0, r"\'02\'00.", r"\'01", 3)),
+        ["1.", "2.", "3."]
+    );
+    assert_eq!(
+        markers(&numbered(1, r"\'02\'00.", r"\'01", 4)),
+        ["I.", "II.", "III.", "IV."]
+    );
+    assert_eq!(
+        markers(&numbered(2, r"\'02\'00.", r"\'01", 4)),
+        ["i.", "ii.", "iii.", "iv."]
+    );
+    assert_eq!(
+        markers(&numbered(3, r"\'02\'00.", r"\'01", 2)),
+        ["A.", "B."]
+    );
+    assert_eq!(
+        markers(&numbered(4, r"\'02\'00.", r"\'01", 2)),
+        ["a.", "b."]
+    );
+    assert_eq!(
+        markers(&numbered(22, r"\'02\'00.", r"\'01", 2)),
+        ["01.", "02."]
+    );
+    // A bullet level has no placeholder, so its template is literal text.
+    assert_eq!(
+        markers(&numbered(23, r"\'01\u8226 ?", "", 2)),
+        ["\u{2022}", "\u{2022}"]
+    );
+}
+
+#[test]
+fn unsupported_number_formats_fall_back_to_arabic_with_a_diagnostic() {
+    let document = numbered(45, r"\'02\'00.", r"\'01", 2);
+    assert_eq!(markers(&document), ["1.", "2."]);
+    assert!(
+        document
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "unsupported-list-number-format")
+    );
+}
+
+#[test]
+fn nested_levels_restart_when_a_shallower_level_advances() {
+    let document = model(
+        br"{\rtf1{\*\listtable{\list
+{\listlevel\levelnfc0\levelstartat1{\leveltext \'02\'00.;}{\levelnumbers\'01;}}
+{\listlevel\levelnfc0\levelstartat1{\leveltext \'04\'00.\'01.;}{\levelnumbers\'01\'03;}}
+\listid1}}{\*\listoverridetable{\listoverride\listid1\ls1}}
+\ls1\ilvl0 a\par \ls1\ilvl1 b\par \ls1\ilvl1 c\par \ls1\ilvl0 d\par \ls1\ilvl1 e\par}",
+    );
+    // The second level's template names both counters, and it restarts under each parent.
+    assert_eq!(markers(&document), ["1.", "1.1.", "1.2.", "2.", "2.1."]);
+}
+
+#[test]
+fn an_override_start_value_replaces_the_level_start() {
+    let document = model(
+        br"{\rtf1{\*\listtable{\list{\listlevel\levelnfc0\levelstartat1
+{\leveltext \'02\'00.;}{\levelnumbers\'01;}}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\ls1{\lfolevel\levelstartat7}}}
+\ls1\ilvl0 a\par \ls1\ilvl0 b\par}",
+    );
+    assert_eq!(markers(&document), ["7.", "8."]);
+}
+
+#[test]
+fn a_resolved_marker_replaces_the_cached_list_text() {
+    let document = model(
+        br"{\rtf1{\*\listtable{\list{\listlevel\levelnfc0\levelstartat1
+{\leveltext \'02\'00.;}{\levelnumbers\'01;}}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\ls1}}
+{\listtext 9.\tab}\ls1\ilvl0 item\par}",
+    );
+    assert_eq!(markers(&document), ["1."]);
+    // The writer's cached " 9." is dropped so the marker is not drawn twice.
+    assert_eq!(all_text(&document), "item");
+}
+
+#[test]
+fn unresolvable_list_references_are_reported_and_keep_the_cached_text() {
+    let document = model(br"{\rtf1{\listtext 5.\tab}\ls9\ilvl0 item\par}");
+    assert!(markers(&document).is_empty());
+    assert_eq!(all_text(&document), "5.\titem");
+    assert!(
+        document
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "unresolved-list-reference")
+    );
+}
+
+#[test]
+fn a_level_beyond_the_definition_uses_the_last_declared_level() {
+    let document = model(
+        br"{\rtf1{\*\listtable{\list{\listlevel\levelnfc0\levelstartat1
+{\leveltext \'02\'00.;}{\levelnumbers\'01;}}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\ls1}}\ls1\ilvl4 item\par}",
+    );
+    assert_eq!(markers(&document), ["1."]);
+    assert!(
+        document
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "unsupported-list-level")
+    );
+}
+
 #[test]
 fn list_compatibility_text_is_kept_and_definition_text_is_hidden() {
     let document = model(
         br"{\rtf1{\*\listtable{\list hidden}}{\listtext\pard\plain\bullet\tab}\ls1 item\par}",
     );
+    // The definition text stays out of the body and the cached marker is kept, because this
+    // document declares no level for the paragraph's \\ls to resolve against.
     assert_eq!(all_text(&document), "•\titem");
     assert!(
         document
             .diagnostics
             .iter()
-            .any(|d| d.code == "unsupported-list-semantics")
+            .any(|d| d.code == "unresolved-list-reference")
     );
 }
 

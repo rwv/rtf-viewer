@@ -56,6 +56,14 @@ async function tokenize(paragraph: Paragraph, signal?: AbortSignal): Promise<Tok
     current = undefined;
     previous = '';
   };
+  // A resolved list marker leads the first line, followed by whatever the level declares.
+  const marker = paragraph.listMarker;
+  if (marker) {
+    result.push({ kind: 'text', parts: [{ text: marker.text, style: paragraph.markStyle }] });
+    if (marker.follow === 'tab') result.push({ kind: 'tab' });
+    else if (marker.follow === 'space')
+      result.push({ kind: 'space', parts: [{ text: ' ', style: paragraph.markStyle }] });
+  }
   for (const run of paragraph.runs) {
     if (run.kind === 'image') {
       end();

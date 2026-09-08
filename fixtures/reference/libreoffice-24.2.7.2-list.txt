@@ -1,0 +1,13 @@
+List Reference
+     1. First item
+     2. Second item, long enough that it wraps onto
+        a second line inside the list body.
+              1. Nested first
+              2. Nested second
+     3. Third item
+     •   Bullet one
+     •   Bullet two
+     7. Restarted at seven
+     8. Eight
+After the lists.
+

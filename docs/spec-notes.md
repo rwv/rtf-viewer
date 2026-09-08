@@ -61,9 +61,17 @@ Vertical merges (`\clvmgf`, `\clvmrg`), nested tables (`\itap` above 1, `\nestro
 
 A row whose definition is unusable never loses text. With no `\cellx` at all, with boundaries that do not increase, with more cells than boundaries, or with no `\row` before the document ends, the cell content is emitted in reading order with a named diagnostic.
 
-## Deferred lists
+## Lists and numbering
 
-Word 97+ numbering uses `listtable`, `listoverridetable`, paragraph `ls`, and `ilvl` (pp. 30-35, 87). Until semantic counters exist, the reader intentionally renders `listtext`, the flat marker supplied for old readers, and suppresses the list definition. Old `pntext` has the same fallback role relative to starred `pn` instructions (pp. 84-87). Rendering both semantic numbering and compatibility text would duplicate markers.
+Word 97+ numbering uses `listtable`, `listoverridetable`, paragraph `ls`, and `ilvl` (pp. 30-35, 87). A paragraph's `\ls` names a list _override_, which names a `\list` by `\listid`; the level comes from `\ilvl`.
+
+`\leveltext` is a length-prefixed string whose placeholder characters hold the index of the level whose counter to substitute. `\levelnumbers` is not length prefixed: its bytes are the one-based offsets into that template which are placeholders, terminated by the group's literal semicolon. A level with no placeholder, such as a bullet, is literal text. `\levelnfc` selects the format: 0 arabic, 1 and 2 roman, 3 and 4 letters, 22 leading-zero arabic, 23 bullet and 255 none. Any other value renders as arabic and reports `unsupported-list-number-format`, because rendering nothing would lose the marker entirely.
+
+Counters are document-order state, so the parser owns them and emits a resolved marker per paragraph rather than leaving layout to count. A level's counter takes its start value on first use and increments afterwards; advancing a level restarts every deeper level. `\levelstartat` inside a `\lfolevel` override replaces the level's own start.
+
+A level's `\li` and `\fi` are defaults: they apply only where the paragraph declares no indents of its own, because `\ls` and `\ilvl` can arrive before or after the paragraph's own indent controls.
+
+`\listtext` is the flat marker a writer supplies for old readers. It is collected apart from the body and used only where no definition resolves, because rendering both the generated number and the cached text would duplicate the marker. Old `pntext` has the same fallback role relative to starred `pn` instructions (pp. 84-87), which remain unsupported.
 
 ## Resource policy
 

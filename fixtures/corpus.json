@@ -234,6 +234,104 @@
           "issue": 21
         }
       ]
+    },
+    {
+      "id": "libreoffice-24.2.7.2-list",
+      "producer": {
+        "application": "LibreOffice",
+        "version": "24.2.7.2",
+        "generator": "LibreOffice/24.2.7.2$Linux_X86_64 LibreOffice_project/420$Build-2",
+        "platform": "Ubuntu 24.04.4 LTS, x86-64",
+        "packages": [
+          "libreoffice-core 4:24.2.7-0ubuntu0.24.04.4",
+          "libreoffice-writer 4:24.2.7-0ubuntu0.24.04.6",
+          "fonts-liberation 1:2.1.5-3",
+          "poppler-utils 24.02.0-1ubuntu9.9"
+        ]
+      },
+      "features": [
+        "list-tables",
+        "list-levels",
+        "generated-numbering",
+        "nested-list-levels",
+        "bullet-levels",
+        "list-override-restart",
+        "hanging-indents"
+      ],
+      "artifacts": [
+        {
+          "path": "fixtures/real/libreoffice-24.2-list-source.html",
+          "kind": "source",
+          "sha256": "812372516d0603ffe72429f0fdfb76ae7876bba9bb062595470615206203363b",
+          "producedBy": "hand-written CC0 source"
+        },
+        {
+          "path": "fixtures/real/libreoffice-24.2.7.2-list.rtf",
+          "kind": "document",
+          "sha256": "bfb36cebd2ca9e9318f59a8f392a2ffe21d7001cc61581cc143561e493eaf290",
+          "producedBy": "LibreOffice 24.2.7.2 Rich Text Format filter"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-list.pdf",
+          "kind": "pdf",
+          "sha256": "949fa19f4befef6b0a6012c7800cd5b60059b64c739d84861045bb566978d703",
+          "producedBy": "LibreOffice 24.2.7.2 writer_pdf_Export"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-list.txt",
+          "kind": "text",
+          "sha256": "26e2886a7bd5ca99aa50f2281609894acdd4df33881c72832e633070001460c4",
+          "producedBy": "pdftotext -layout, Poppler 24.02.0"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-list-page-1.png",
+          "kind": "image",
+          "sha256": "35ccaedee29101b41c17ccf8e87ac3cd86bc9a41a8731caac7815ec418ec0a92",
+          "producedBy": "pdftoppm -png -r 96, Poppler 24.02.0"
+        }
+      ],
+      "fonts": [
+        {
+          "family": "Liberation Serif",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+          "sha256": "705903ae1382f0150f115d6f10a30f5b2f3d6ade649c474afe6366c39174fb65"
+        },
+        {
+          "family": "Liberation Serif Bold",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
+          "sha256": "9e66c25e20868756bf12eb24a520a4552727c9cd108f577f7ae33e3c0110e39c"
+        },
+        {
+          "family": "Liberation Sans",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144"
+        },
+        {
+          "family": "Liberation Sans Bold",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+          "sha256": "3973aa5054fb467dd5627245d3dc82e37bf16fe075756156a570455871351582"
+        }
+      ],
+      "commands": [
+        "libreoffice -env:UserInstallation=\"file://$(mktemp -d)\" --headless --convert-to 'rtf:Rich Text Format' --outdir /tmp fixtures/real/libreoffice-24.2-list-source.html",
+        "libreoffice -env:UserInstallation=\"file://$(mktemp -d)\" --headless --convert-to 'pdf:writer_pdf_Export' --outdir fixtures/reference fixtures/real/libreoffice-24.2.7.2-list.rtf",
+        "pdftotext -layout fixtures/reference/libreoffice-24.2.7.2-list.pdf fixtures/reference/libreoffice-24.2.7.2-list.txt",
+        "pdftoppm -png -r 96 fixtures/reference/libreoffice-24.2.7.2-list.pdf fixtures/reference/libreoffice-24.2.7.2-list-page"
+      ],
+      "deltas": [
+        {
+          "id": "lo-2427-list-marker-spacing",
+          "classification": "font",
+          "summary": "The producer pads its cached marker with a leading space that the generated marker does not reproduce.",
+          "measured": "The reference text extraction shows ' 1.' where the engine generates '1.'; the level template declares only the placeholder and a full stop, so the space is the producer's own padding.",
+          "status": "accepted",
+          "issue": 30
+        }
+      ]
     }
   ]
 }

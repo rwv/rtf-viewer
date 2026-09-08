@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LibreOffice RTF list reference</title>
+  <style>
+    @page { size: 4in 5in; margin: 0.5in; }
+    body { font-family: "Liberation Serif", serif; font-size: 10pt; }
+    h1 { font-family: "Liberation Sans", sans-serif; font-size: 14pt; margin: 0 0 8pt; }
+    p { margin: 0 0 8pt; }
+  </style>
+</head>
+<body>
+  <h1>List Reference</h1>
+  <ol>
+    <li>First item</li>
+    <li>Second item, long enough that it wraps onto a second line inside the list body.
+      <ol>
+        <li>Nested first</li>
+        <li>Nested second</li>
+      </ol>
+    </li>
+    <li>Third item</li>
+  </ol>
+  <ul>
+    <li>Bullet one</li>
+    <li>Bullet two</li>
+  </ul>
+  <ol start="7">
+    <li>Restarted at seven</li>
+    <li>Eight</li>
+  </ol>
+  <p>After the lists.</p>
+</body>
+</html>

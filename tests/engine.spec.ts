@@ -598,6 +598,48 @@ test('merged cells fixture spans columns and drops the boundary it removed', asy
   expect(result.trailingMergeWalls).toEqual([17.5, 77.75, 197.5]);
 });
 
+test('list fixture resolves numbering, nesting, bullets and a restart', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { RtfDocument } = window.__rtfTest;
+    await document.fonts.load('12px "Rtf Liberation Serif"');
+    const doc = await RtfDocument.load(
+      await (await fetch('/samples/list-numbering.rtf')).arrayBuffer(),
+      { fonts: { 'Liberation Serif': 'Rtf Liberation Serif' } },
+    );
+    const layout = doc.getPageLayout(0);
+    const result = {
+      diagnostics: doc.diagnostics.map((diagnostic: any) => diagnostic.code),
+      lines: layout.lines.map((line: any) => [
+        line.fragments.map((fragment: any) => fragment.text ?? '').join(''),
+        line.x,
+      ]),
+      markers: doc.model.blocks
+        .filter((block: any) => block.kind === 'paragraph' && block.listMarker)
+        .map((block: any) => block.listMarker.text),
+    };
+    doc.destroy();
+    return result;
+  });
+  expect(result.diagnostics).toEqual([]);
+  // Counters advance in document order, the deeper level restarts under each parent, and the
+  // third override starts at seven.
+  expect(result.markers).toEqual([
+    '1.',
+    '2.',
+    '2.a)',
+    '2.b)',
+    '3.',
+    '\u2022',
+    '\u2022',
+    '7.',
+    '8.',
+  ]);
+  // The cached CACHED marker each paragraph carries is replaced, not drawn beside the number.
+  expect(result.lines.every(([text]) => !String(text).includes('CACHED'))).toBe(true);
+  // Level one hangs at 18 pt and level two at 36 pt, each with a 9 pt hanging first line.
+  expect(result.lines.map(([, x]) => x)).toEqual([27, 27, 45, 45, 27, 27, 27, 27, 27, 18]);
+});
+
 test('real LibreOffice table sample keeps producer column geometry and page count', async ({
   page,
 }) => {
