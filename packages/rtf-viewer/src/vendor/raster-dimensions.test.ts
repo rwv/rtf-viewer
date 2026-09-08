@@ -30,11 +30,7 @@ function jpegHeader(width: number, height: number): Uint8Array {
   return bytes;
 }
 
-function jpegWithExifOrientation(
-  width: number,
-  height: number,
-  orientation: number,
-): Uint8Array {
+function jpegWithExifOrientation(width: number, height: number, orientation: number): Uint8Array {
   const exif = new Uint8Array(32);
   exif.set([0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x49, 0x49]);
   const view = new DataView(exif.buffer);

@@ -8,7 +8,11 @@ export function nextTask(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 /** Observe cancellation promptly and dispose any successful late resource. */
-export function abortable<T>(promise: Promise<T>, signal?: AbortSignal, late?: (value: T) => void): Promise<T> {
+export function abortable<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+  late?: (value: T) => void,
+): Promise<T> {
   if (!signal) return promise;
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -20,17 +24,23 @@ export function abortable<T>(promise: Promise<T>, signal?: AbortSignal, late?: (
     };
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) abort();
-    promise.then((value) => {
-      signal.removeEventListener('abort', abort);
-      if (settled) { late?.(value); return; }
-      settled = true;
-      resolve(value);
-    }, (error: unknown) => {
-      signal.removeEventListener('abort', abort);
-      if (settled) return;
-      settled = true;
-      reject(error);
-    });
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', abort);
+        if (settled) {
+          late?.(value);
+          return;
+        }
+        settled = true;
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', abort);
+        if (settled) return;
+        settled = true;
+        reject(error);
+      },
+    );
   });
 }
 export function freezeDeep<T>(value: T): T {

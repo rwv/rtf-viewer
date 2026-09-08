@@ -51,7 +51,11 @@ import { WMFJS } from 'rtf.js';
 
 const docx = await DocxDocument.load(docxBytes, { mode: 'main' });
 const svg = new WMFJS.Renderer(wmfBytes).render({
-  width: '240px', height: '180px', xExt: 240, yExt: 180, mapMode: 8,
+  width: '240px',
+  height: '180px',
+  xExt: 240,
+  yExt: 180,
+  mapMode: 8,
 });
 ```
 
@@ -79,13 +83,13 @@ production bundle and browser; it is not a fidelity claim.
 
 The dynamic-import measurement separated each package's code in the same build:
 
-| Emitted artifact | Raw bytes | gzip bytes | Consequence |
-| --- | ---: | ---: | --- |
-| OOXML DOCX JS chunk | 1,480,607 | 418,350 | Full DOCX parse/layout/paint graph |
-| DOCX parser WASM | 1,839,187 | 760,553 | Required parser asset |
-| DOCX render-worker asset | 1,665,184 | 491,111 | Emitted self-contained worker; not necessarily fetched in main mode |
-| DOCX support chunks | 27,306 | 9,197 | Comments and UI runtime in this graph |
-| rtf.js top-level import | 2,237,092 | 850,471 | Pulls its RTF, WMF, and EMF bundles |
+| Emitted artifact         | Raw bytes | gzip bytes | Consequence                                                         |
+| ------------------------ | --------: | ---------: | ------------------------------------------------------------------- |
+| OOXML DOCX JS chunk      | 1,480,607 |    418,350 | Full DOCX parse/layout/paint graph                                  |
+| DOCX parser WASM         | 1,839,187 |    760,553 | Required parser asset                                               |
+| DOCX render-worker asset | 1,665,184 |    491,111 | Emitted self-contained worker; not necessarily fetched in main mode |
+| DOCX support chunks      |    27,306 |      9,197 | Comments and UI runtime in this graph                               |
+| rtf.js top-level import  | 2,237,092 |    850,471 | Pulls its RTF, WMF, and EMF bundles                                 |
 
 The installed `@silurus/ooxml` source declarations exposed a critical package
 boundary: `packages/core/src/index.ts` exports `sniffRasterDimensions`, WMF/EMF
@@ -151,7 +155,7 @@ rtf.js has real public renderer classes:
 
 - `WMFJS.Renderer(ArrayBuffer).render({ width, height, xExt, yExt, mapMode })`;
 - `EMFJS.Renderer(ArrayBuffer).render({ width, height, wExt, hExt, xExt, yExt,
-  mapMode })`.
+mapMode })`.
 
 Both return `SVGElement`. The implementation creates DOM and SVG nodes directly,
 so it cannot run in the parser Worker or produce this project's structured-clone
@@ -180,13 +184,13 @@ its own record support matrix and diagnostics.
 
 ## Original v1 route decision
 
-| Route | Result | Decision |
-| --- | --- | --- |
-| `@silurus/ooxml` npm dependency | Supported `DocxDocument` works, but small core helpers are unpublished and the DOCX graph emits large JS/WASM/Worker assets | Reject for runtime reuse |
-| Whole OOXML engine via submodule/fork | Would require the upstream build and adaptation of its DOCX semantics | Reject for full-engine reuse |
-| Attributed source subset | Pure byte inspection is isolated, testable, and useful before browser decode | Adopt PNG/JPEG subset only |
-| `rtf.js` npm dependency | WMF renderer works in Chromium, but the supported import is large, DOM/SVG-bound, and silently skips many records | Defer/reject for initial runtime |
-| rtf.js source/submodule | Avoids the top-level bundle but imports a 6,726-line, 248,919-byte WMF/EMF/SVG subsystem that needs new diagnostics and ownership integration | Defer |
+| Route                                 | Result                                                                                                                                        | Decision                         |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `@silurus/ooxml` npm dependency       | Supported `DocxDocument` works, but small core helpers are unpublished and the DOCX graph emits large JS/WASM/Worker assets                   | Reject for runtime reuse         |
+| Whole OOXML engine via submodule/fork | Would require the upstream build and adaptation of its DOCX semantics                                                                         | Reject for full-engine reuse     |
+| Attributed source subset              | Pure byte inspection is isolated, testable, and useful before browser decode                                                                  | Adopt PNG/JPEG subset only       |
+| `rtf.js` npm dependency               | WMF renderer works in Chromium, but the supported import is large, DOM/SVG-bound, and silently skips many records                             | Defer/reject for initial runtime |
+| rtf.js source/submodule               | Avoids the top-level bundle but imports a 6,726-line, 248,919-byte WMF/EMF/SVG subsystem that needs new diagnostics and ownership integration | Defer                            |
 
 ## Original v1 source extraction
 

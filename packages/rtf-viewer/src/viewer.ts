@@ -14,7 +14,10 @@ export class RtfViewer {
   private loadController?: AbortController;
   private paintController?: AbortController;
   private pending: Promise<void> = Promise.resolve();
-  constructor(readonly canvas: HTMLCanvasElement, private readonly options: LoadOptions = {}) {}
+  constructor(
+    readonly canvas: HTMLCanvasElement,
+    private readonly options: LoadOptions = {},
+  ) {}
   static fromDocument(canvas: HTMLCanvasElement, document: RtfDocument): RtfViewer {
     if (document.destroyed) throw new Error('Cannot borrow a destroyed document.');
     const viewer = new RtfViewer(canvas);
@@ -22,11 +25,21 @@ export class RtfViewer {
     viewer.current = document;
     return viewer;
   }
-  get document(): RtfDocument | null { return this.current; }
-  get pageIndex(): number { return this.index; }
-  get scale(): number { return this.zoom; }
-  get pageCount(): number { return this.current?.pageCount ?? 0; }
-  private ensureOpen(): void { if (this.closed) throw new Error('The RTF viewer has been destroyed.'); }
+  get document(): RtfDocument | null {
+    return this.current;
+  }
+  get pageIndex(): number {
+    return this.index;
+  }
+  get scale(): number {
+    return this.zoom;
+  }
+  get pageCount(): number {
+    return this.current?.pageCount ?? 0;
+  }
+  private ensureOpen(): void {
+    if (this.closed) throw new Error('The RTF viewer has been destroyed.');
+  }
   async load(input: RtfInput, options: LoadOptions = {}): Promise<void> {
     this.ensureOpen();
     if (!this.owned) throw new Error('A borrowed viewer cannot replace its document.');
@@ -41,15 +54,19 @@ export class RtfViewer {
     this.current = null;
     const document = await RtfDocument.load(input, { ...this.options, ...options, signal });
     if (this.closed || generation !== this.loadGeneration || signal.aborted) {
-      document.destroy(); throw abortError();
+      document.destroy();
+      throw abortError();
     }
     this.current = document;
     this.index = 0;
     await this.draw(0, this.zoom);
   }
-  async goToPage(index: number): Promise<void> { await this.draw(index, this.zoom); }
+  async goToPage(index: number): Promise<void> {
+    await this.draw(index, this.zoom);
+  }
   async setScale(scale: number): Promise<void> {
-    if (!Number.isFinite(scale) || scale <= 0 || scale > 8) throw new RangeError('Viewer scale must be between 0 and 8.');
+    if (!Number.isFinite(scale) || scale <= 0 || scale > 8)
+      throw new RangeError('Viewer scale must be between 0 and 8.');
     await this.draw(this.index, scale);
   }
   private async draw(index: number, scale: number): Promise<void> {
@@ -66,10 +83,14 @@ export class RtfViewer {
       await prior.catch(() => undefined);
       checkAbort(controller.signal);
       if (this.closed || generation !== this.paintGeneration) throw abortError();
-      await document.renderPage(this.canvas, index, { scale, pixelRatio: globalThis.devicePixelRatio || 1, signal: controller.signal });
+      await document.renderPage(this.canvas, index, {
+        scale,
+        pixelRatio: globalThis.devicePixelRatio || 1,
+        signal: controller.signal,
+      });
       if (this.closed || generation !== this.paintGeneration) throw abortError();
-      this.canvas.style.width = `${size.width * 96 / 72 * scale}px`;
-      this.canvas.style.height = `${size.height * 96 / 72 * scale}px`;
+      this.canvas.style.width = `${((size.width * 96) / 72) * scale}px`;
+      this.canvas.style.height = `${((size.height * 96) / 72) * scale}px`;
       this.index = index;
       this.zoom = scale;
     })();

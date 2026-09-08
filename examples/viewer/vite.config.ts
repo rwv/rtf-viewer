@@ -6,7 +6,9 @@ function copySamples(): Plugin {
   return {
     name: 'copy-rtf-samples',
     buildStart() {
-      const syntheticDirectory = fileURLToPath(new URL('../../fixtures/synthetic', import.meta.url));
+      const syntheticDirectory = fileURLToPath(
+        new URL('../../fixtures/synthetic', import.meta.url),
+      );
       const realDirectory = fileURLToPath(new URL('../../fixtures/real', import.meta.url));
       const outputDirectory = fileURLToPath(new URL('./public/samples', import.meta.url));
       rmSync(outputDirectory, { recursive: true, force: true });
@@ -14,7 +16,12 @@ function copySamples(): Plugin {
       const referenceDirectory = fileURLToPath(new URL('./public/reference', import.meta.url));
       rmSync(referenceDirectory, { recursive: true, force: true });
       mkdirSync(referenceDirectory, { recursive: true });
-      copyFileSync(fileURLToPath(new URL('../../fixtures/reference/libreoffice-25.2.3.2-page-1.png', import.meta.url)), `${referenceDirectory}/libreoffice-25.2.3.2-page-1.png`);
+      copyFileSync(
+        fileURLToPath(
+          new URL('../../fixtures/reference/libreoffice-25.2.3.2-page-1.png', import.meta.url),
+        ),
+        `${referenceDirectory}/libreoffice-25.2.3.2-page-1.png`,
+      );
       for (const directory of [syntheticDirectory, realDirectory]) {
         for (const name of readdirSync(directory).filter((entry) => entry.endsWith('.rtf'))) {
           copyFileSync(`${directory}/${name}`, `${outputDirectory}/${name}`);

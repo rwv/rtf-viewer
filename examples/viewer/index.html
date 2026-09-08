@@ -27,18 +27,31 @@
         <section class="viewer-panel" aria-labelledby="document-heading">
           <div class="toolbar">
             <div class="page-controls" aria-label="Page navigation">
-              <button class="icon-button" id="previous-page" type="button" aria-label="Previous page">←</button>
+              <button
+                class="icon-button"
+                id="previous-page"
+                type="button"
+                aria-label="Previous page"
+              >
+                ←
+              </button>
               <output class="page-indicator" id="page-indicator" aria-live="polite">— / —</output>
-              <button class="icon-button" id="next-page" type="button" aria-label="Next page">→</button>
+              <button class="icon-button" id="next-page" type="button" aria-label="Next page">
+                →
+              </button>
             </div>
 
             <h1 id="document-heading">Document proof</h1>
 
             <div class="view-actions">
               <div class="zoom-controls" aria-label="Zoom controls">
-                <button class="icon-button" id="zoom-out" type="button" aria-label="Zoom out">−</button>
+                <button class="icon-button" id="zoom-out" type="button" aria-label="Zoom out">
+                  −
+                </button>
                 <output id="zoom-value" aria-live="polite">100%</output>
-                <button class="icon-button" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+                <button class="icon-button" id="zoom-in" type="button" aria-label="Zoom in">
+                  +
+                </button>
               </div>
               <button class="button button-export" id="download-png" type="button">Save PNG</button>
             </div>
@@ -66,13 +79,15 @@
             <h2 id="inspector-heading">Document notes</h2>
             <span class="diagnostic-count" id="diagnostic-count">0</span>
           </div>
-          <p class="inspector-intro">Parsing and layout notices appear here. They do not change the source file.</p>
+          <p class="inspector-intro">
+            Parsing and layout notices appear here. They do not change the source file.
+          </p>
           <ol class="diagnostic-list" id="diagnostic-list">
             <li class="diagnostic-empty">No notices for this document.</li>
           </ol>
           <div class="paper-facts" aria-label="Page information">
-            <span>Paper</span><strong id="paper-size">—</strong>
-            <span>Page</span><strong id="page-fact">—</strong>
+            <span>Paper</span><strong id="paper-size">—</strong> <span>Page</span
+            ><strong id="page-fact">—</strong>
           </div>
         </aside>
       </main>

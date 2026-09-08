@@ -6,14 +6,14 @@ Verification has three separate purposes: understand RTF rules, preserve renderi
 
 The issue #5 fixes passed `pnpm check` locally on Linux with Node 24.13.0, pnpm 10.33.0, Rust 1.98.1, wasm-bindgen 0.2.128, TypeScript 7.0.2, Vitest 5.0.0, Vite 8.2.2 and Playwright 1.63.0. These checks cover the fixes introduced in 1.0.3; the 1.0.2 package does not contain them.
 
-| Check | Result |
-| --- | --- |
-| Native Rust | 34 parser tests passed, including all requested numeric codepages, UTF-16 ASCII-range bytes, malformed sequences and font cpg overrides |
-| Generated contract | Byte-for-byte Rust/TypeScript match |
-| Pure logic and upstream adapter | 25 tests passed, including integral/fractional raster extents, canvas limits, wrapped-tab geometry and the actual upstream signature |
-| Builds and type checking | Library, example, public declarations, Worker and Node build code passed |
-| Production browser | 51 tests passed: 17 each in Chromium, Firefox and WebKit, including exact encoding fixtures, 150-PPI Canvas/bitmap sizes and relevant font invalidation |
-| Installed package | One Playwright consumer passed after a fresh npm install, strict public API compilation and Vite production build |
+| Check                           | Result                                                                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native Rust                     | 34 parser tests passed, including all requested numeric codepages, UTF-16 ASCII-range bytes, malformed sequences and font cpg overrides                 |
+| Generated contract              | Byte-for-byte Rust/TypeScript match                                                                                                                     |
+| Pure logic and upstream adapter | 25 tests passed, including integral/fractional raster extents, canvas limits, wrapped-tab geometry and the actual upstream signature                    |
+| Builds and type checking        | Library, example, public declarations, Worker and Node build code passed                                                                                |
+| Production browser              | 51 tests passed: 17 each in Chromium, Firefox and WebKit, including exact encoding fixtures, 150-PPI Canvas/bitmap sizes and relevant font invalidation |
+| Installed package               | One Playwright consumer passed after a fresh npm install, strict public API compilation and Vite production build                                       |
 
 The consumer asserts two pages with 15 and 9 lines, continuation text, physical Canvas dimensions, caller-owned ImageBitmap close, and borrowed viewer ownership. Both automatic asset discovery and explicit Worker/WASM URLs work at `/viewer/`; no request failed. It compiles every documented public type and exercises `RtfDocument`, `layoutDocument`, and `pixelSize`. The packed WASM also decodes UTF-16 ASCII-range bytes and surrogate pairs; an empty font event leaves the document renderable; 150-PPI output has the exact physical dimensions. The archive and report are written to ignored `artifacts/` and tied together by SHA-256.
 
