@@ -2,6 +2,13 @@
 
 This project follows [Semantic Versioning](https://semver.org/). RTF feature coverage can grow in compatible minor releases; the public model and layout evolution rules are documented in the [README](https://github.com/rwv/rtf-viewer#public-api-and-versioning).
 
+## [1.1.0](https://github.com/rwv/rtf-viewer/compare/v1.0.4...v1.1.0) (2026-09-08)
+
+
+### Features
+
+* ordinary table geometry and a validated producer corpus ([#22](https://github.com/rwv/rtf-viewer/issues/22)) ([2d6ce38](https://github.com/rwv/rtf-viewer/commit/2d6ce383988c4104edb8ab2a33f0b40f010471d5)), closes [#20](https://github.com/rwv/rtf-viewer/issues/20) [#21](https://github.com/rwv/rtf-viewer/issues/21)
+
 ## [1.0.4](https://github.com/rwv/rtf-viewer/compare/v1.0.3...v1.0.4) (2026-09-08)
 
 
