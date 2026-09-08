@@ -229,6 +229,55 @@ Page three marker.\par
         + "\n\\pard\\sl-240\\slmult0 After the table.\\par\n}",
     )
 
+    # One list table with two numbered levels, one bullet list, and a list whose override
+    # restarts the count. \'02 is a template length, \'00 a placeholder for level 0.
+    list_table = (
+        r"{\*\listtable"
+        r"{\list\listtemplateid1"
+        r"{\listlevel\levelnfc0\leveljc0\levelstartat1\levelfollow0"
+        r"{\leveltext \'02\'00.;}{\levelnumbers\'01;}\fi-180\li360}"
+        r"{\listlevel\levelnfc4\leveljc0\levelstartat1\levelfollow0"
+        r"{\leveltext \'04\'00.\'01);}{\levelnumbers\'01\'03;}\fi-180\li720}"
+        r"\listid1}"
+        r"{\list\listtemplateid2"
+        r"{\listlevel\levelnfc23\leveljc0\levelstartat1\levelfollow0"
+        r"{\leveltext \'01" + "\\u8226 ?" + r";}{\levelnumbers;}\fi-180\li360}"
+        r"\listid2}"
+        r"}"
+        r"{\*\listoverridetable"
+        r"{\listoverride\listid1\listoverridecount0\ls1}"
+        r"{\listoverride\listid2\listoverridecount0\ls2}"
+        r"{\listoverride\listid1\listoverridecount0\ls3{\lfolevel\levelstartat7}}"
+        r"}"
+    )
+    list_items = [
+        (1, 0, "Alpha"),
+        (1, 0, "Beta"),
+        (1, 1, "Beta one"),
+        (1, 1, "Beta two"),
+        (1, 0, "Gamma"),
+        (2, 0, "Bullet one"),
+        (2, 0, "Bullet two"),
+        (3, 0, "Restarted"),
+        (3, 0, "Continues"),
+    ]
+    write_text(
+        "list-numbering.rtf",
+        r"""{\rtf1\ansi\ansicpg1252\deff0\uc1
+{\fonttbl{\f0\froman\fcharset0 Liberation Serif;}}
+"""
+        + list_table
+        + r"""
+\paperw4320\paperh4320\margl360\margr360\margt360\margb360
+\f0\fs24\sl-240\slmult0
+"""
+        + "\n".join(
+            f"\\pard\\sl-240\\slmult0{{\\listtext CACHED\\tab}}\\ls{ls}\\ilvl{level} {text}\\par"
+            for ls, level, text in list_items
+        )
+        + "\n\\pard\\sl-240\\slmult0 After the lists.\\par\n}",
+    )
+
     write_text(
         "showcase.rtf",
         """{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1

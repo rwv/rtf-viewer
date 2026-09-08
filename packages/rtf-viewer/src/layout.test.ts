@@ -218,6 +218,7 @@ describe('retained point geometry', () => {
 });
 
 type Row = Extract<Block, { kind: 'row' }>;
+type Paragraph = Extract<Block, { kind: 'paragraph' }>;
 const noBorders: TableCell['borders'] = { top: null, left: null, bottom: null, right: null };
 const noPadding: TableCell['padding'] = { left: 0, top: 0, right: 0, bottom: 0 };
 function tableCell(texts: string[], right: number, over: Partial<TableCell> = {}): TableCell {
@@ -363,6 +364,43 @@ describe('ordinary table geometry', () => {
     );
     expect(layout.diagnostics.map((d) => d.code)).toContain('narrow-table-cell');
     expect(layout.pages[0].lines.map(textOf).join('')).toBe('ab');
+  });
+});
+
+describe('resolved list markers', () => {
+  const listed = (text: string, marker: Partial<NonNullable<Paragraph['listMarker']>> = {}) => {
+    const block = paragraph(text) as Paragraph;
+    block.listMarker = { text: '1.', follow: 'tab', level: 0, ...marker };
+    return block;
+  };
+  it('draws the marker before the body at the paragraph start', async () => {
+    const layout = await layoutDocument(model([listed('item')], 100, 100), services);
+    const [line] = layout.pages[0].lines;
+    expect(line.fragments.map((f) => (f.kind === 'text' ? f.text : ''))).toEqual([
+      '1.',
+      ' ',
+      'item',
+    ]);
+    expect(line.x).toBe(10);
+    // The 10 pt marker lands exactly on a 10 pt tab stop, so the tab advances a full interval.
+    expect(line.fragments[2].x).toBe(30);
+  });
+  it('honours each level-follow value', async () => {
+    const of = async (follow: 'tab' | 'space' | 'nothing') => {
+      const layout = await layoutDocument(model([listed('item', { follow })], 100, 100), services);
+      return layout.pages[0].lines[0].fragments.map((f) => (f.kind === 'text' ? f.text : ''));
+    };
+    expect(await of('tab')).toEqual(['1.', ' ', 'item']);
+    expect(await of('space')).toEqual(['1.', ' ', 'item']);
+    expect(await of('nothing')).toEqual(['1.', 'item']);
+  });
+  it('keeps a hanging indent aligned under the body, not the marker', async () => {
+    const block = listed('aaa bbb ccc ddd', { follow: 'nothing' });
+    block.style = { ...block.style, leftIndent: 10, firstLineIndent: -10 };
+    const layout = await layoutDocument(model([block], 40, 100), services);
+    const lines = layout.pages[0].lines;
+    expect(lines[0].x).toBe(10);
+    expect(lines.slice(1).every((line) => line.x === 20)).toBe(true);
   });
 });
 

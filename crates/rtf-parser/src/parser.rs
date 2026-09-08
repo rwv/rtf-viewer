@@ -1,10 +1,10 @@
 use crate::model::{
     Block, Border, BorderStyle, CellBorders, CellShading, Diagnostic, DocumentModel, FontDef,
-    ImageFormat, ImageResource, LineSpacing, Padding, PageGeometry, ParagraphAlign, ParagraphStyle,
-    RowAlign, RowHeight, Run, TableCell, TextStyle, VerticalAlign,
+    ImageFormat, ImageResource, LevelFollow, LineSpacing, ListMarker, Padding, PageGeometry,
+    ParagraphAlign, ParagraphStyle, RowAlign, RowHeight, Run, TableCell, TextStyle, VerticalAlign,
 };
 use encoding_rs::Encoding;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
@@ -16,6 +16,8 @@ const MAX_IMAGES: usize = 256;
 const MAX_IMAGE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_DIAGNOSTICS: usize = 512;
 const MAX_CELLS_PER_ROW: usize = 256;
+const MAX_LISTS: usize = 512;
+const MAX_LIST_LEVELS: usize = 9;
 const MAX_BORDER_WIDTH: f64 = 12.0;
 const MIN_BORDER_WIDTH: f64 = 0.25;
 const DEFAULT_BORDER_WIDTH: f64 = 0.5;
@@ -67,12 +69,23 @@ enum Destination {
     PictureContainer,
     ListText,
     PnText,
+    ListTable,
+    ListLevelText,
+    ListLevelNumbers,
+    ListOverrideTable,
     Suppress,
 }
 
 impl Destination {
     fn is_visible(self) -> bool {
-        matches!(self, Self::Body | Self::ListText | Self::PnText)
+        matches!(
+            self,
+            Self::Body
+                | Self::ListText
+                | Self::PnText
+                | Self::ListLevelText
+                | Self::ListLevelNumbers
+        )
     }
 }
 
@@ -88,6 +101,11 @@ struct ParagraphState {
     line_spacing_multiple: bool,
     page_break_before: bool,
     in_table: bool,
+    /// `\ls` names a list override, not a list; resolution happens when the paragraph flushes.
+    list_id: Option<i32>,
+    list_level: u32,
+    /// Set by the paragraph's own indent controls, so a list level cannot override them.
+    explicit_indents: bool,
 }
 
 impl Default for ParagraphState {
@@ -103,6 +121,9 @@ impl Default for ParagraphState {
             line_spacing_multiple: false,
             page_break_before: false,
             in_table: false,
+            list_id: None,
+            list_level: 0,
+            explicit_indents: false,
         }
     }
 }
@@ -168,6 +189,9 @@ struct GroupFlags {
 struct ParagraphBuilder {
     runs: Vec<Run>,
     style: ParagraphState,
+    /// Runs contributed by `\listtext` or `\pntext`, kept apart from the body so that a
+    /// resolved marker can replace them instead of being drawn beside them.
+    list_text: Vec<Run>,
 }
 
 impl ParagraphBuilder {
@@ -175,6 +199,7 @@ impl ParagraphBuilder {
         Self {
             runs: Vec::new(),
             style,
+            list_text: Vec::new(),
         }
     }
 }
@@ -395,6 +420,141 @@ struct RowBuilder {
     overflowed: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NumberFormat {
+    Arabic,
+    ArabicLeadingZero,
+    UpperRoman,
+    LowerRoman,
+    UpperLetter,
+    LowerLetter,
+    /// Bullets and `\levelnfc255` carry no counter; their template is literal text.
+    None,
+}
+
+impl NumberFormat {
+    fn from_nfc(value: i32) -> Option<Self> {
+        Some(match value {
+            0 => Self::Arabic,
+            1 => Self::UpperRoman,
+            2 => Self::LowerRoman,
+            3 => Self::UpperLetter,
+            4 => Self::LowerLetter,
+            22 => Self::ArabicLeadingZero,
+            23 | 255 => Self::None,
+            _ => return None,
+        })
+    }
+
+    fn render(self, value: i32) -> String {
+        let value = value.max(0);
+        match self {
+            Self::None => String::new(),
+            Self::Arabic => value.to_string(),
+            Self::ArabicLeadingZero => format!("{value:02}"),
+            Self::UpperRoman => roman(value, true),
+            Self::LowerRoman => roman(value, false),
+            Self::UpperLetter => letters(value, b'A'),
+            Self::LowerLetter => letters(value, b'a'),
+        }
+    }
+}
+
+/// `\levelnfc` values above the handled set still need a number, so they render as arabic.
+fn roman(value: i32, upper: bool) -> String {
+    const TABLE: [(i32, &str); 13] = [
+        (1000, "m"),
+        (900, "cm"),
+        (500, "d"),
+        (400, "cd"),
+        (100, "c"),
+        (90, "xc"),
+        (50, "l"),
+        (40, "xl"),
+        (10, "x"),
+        (9, "ix"),
+        (5, "v"),
+        (4, "iv"),
+        (1, "i"),
+    ];
+    if !(1..=3999).contains(&value) {
+        return value.to_string();
+    }
+    let mut remaining = value;
+    let mut out = String::new();
+    for (amount, numeral) in TABLE {
+        while remaining >= amount {
+            out.push_str(numeral);
+            remaining -= amount;
+        }
+    }
+    if upper { out.to_uppercase() } else { out }
+}
+
+/// Bijective base 26: 1 is A, 26 is Z, 27 is AA.
+fn letters(value: i32, base: u8) -> String {
+    if value < 1 {
+        return value.to_string();
+    }
+    let mut remaining = value;
+    let mut out = Vec::new();
+    while remaining > 0 {
+        let digit = (remaining - 1) % 26;
+        out.push(base + digit as u8);
+        remaining = (remaining - 1) / 26;
+    }
+    out.reverse();
+    String::from_utf8(out).expect("ASCII letters are valid UTF-8")
+}
+
+#[derive(Debug, Clone)]
+struct LevelDef {
+    start_at: i32,
+    format: NumberFormat,
+    /// `\leveltext` without its length prefix; a placeholder character holds a level index.
+    template: Vec<char>,
+    /// One-based positions in `template` that are placeholders, from `\levelnumbers`.
+    placeholders: Vec<u32>,
+    follow: LevelFollow,
+    left_indent: Option<f64>,
+    first_line_indent: Option<f64>,
+}
+
+impl Default for LevelDef {
+    fn default() -> Self {
+        Self {
+            start_at: 1,
+            format: NumberFormat::Arabic,
+            template: Vec::new(),
+            placeholders: Vec::new(),
+            follow: LevelFollow::Tab,
+            left_indent: None,
+            first_line_indent: None,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+struct ListDef {
+    id: i32,
+    levels: Vec<LevelDef>,
+}
+
+#[derive(Debug, Default, Clone)]
+struct ListOverrideDef {
+    id: i32,
+    list_id: i32,
+    starts: Vec<(u32, i32)>,
+    pending_level: u32,
+}
+
+/// Running counters for one list override, one entry per level. `None` means the level has not
+/// started, so it takes its start value on the next paragraph that uses it.
+#[derive(Debug, Default, Clone)]
+struct ListCounters {
+    values: Vec<Option<i32>>,
+}
+
 pub fn parse(bytes: &[u8]) -> Result<DocumentModel, ParseError> {
     if bytes.len() > MAX_INPUT_BYTES {
         return Err(ParseError::InputTooLarge);
@@ -441,6 +601,13 @@ struct Parser<'a> {
     row: Option<RowBuilder>,
     cell_blocks: Vec<Block>,
     paragraph_count: usize,
+    lists: HashMap<i32, ListDef>,
+    list_overrides: HashMap<i32, ListOverrideDef>,
+    list_counters: HashMap<i32, ListCounters>,
+    list_builder: Option<(usize, ListDef)>,
+    level_builder: Option<(usize, LevelDef)>,
+    override_builder: Option<(usize, ListOverrideDef)>,
+    level_buffer: String,
 }
 
 impl<'a> Parser<'a> {
@@ -485,6 +652,13 @@ impl<'a> Parser<'a> {
             row: None,
             cell_blocks: Vec::new(),
             paragraph_count: 0,
+            lists: HashMap::new(),
+            list_overrides: HashMap::new(),
+            list_counters: HashMap::new(),
+            list_builder: None,
+            level_builder: None,
+            override_builder: None,
+            level_buffer: String::new(),
         }
     }
 
@@ -598,6 +772,7 @@ impl<'a> Parser<'a> {
         if output_context_changes {
             self.flush_all_text()?;
         }
+        self.close_list_groups(parent_state.destination);
         self.state = parent_state;
         self.group = parent_group;
         Ok(())
@@ -902,6 +1077,14 @@ impl<'a> Parser<'a> {
             return Ok(());
         }
 
+        if matches!(
+            self.state.destination,
+            Destination::ListTable | Destination::ListOverrideTable
+        ) {
+            self.list_table_control(name, parameter, offset);
+            return Ok(());
+        }
+
         let target_default_char = self.state.destination == Destination::DefaultCharacter;
         let target_default_para = self.state.destination == Destination::DefaultParagraph;
         if target_default_char || target_default_para {
@@ -1134,11 +1317,16 @@ impl<'a> Parser<'a> {
                 "Row keep-together was ignored; rows may split across pages",
                 offset,
             ),
-            "ls" | "ilvl" => self.diagnostic(
-                "unsupported-list-semantics",
-                "List numbering used its compatibility text representation",
-                offset,
-            ),
+            "ls" => {
+                let mut next = self.state.paragraph.clone();
+                next.list_id = parameter;
+                self.change_paragraph(next);
+            }
+            "ilvl" => {
+                let mut next = self.state.paragraph.clone();
+                next.list_level = parameter.unwrap_or(0).clamp(0, 8) as u32;
+                self.change_paragraph(next);
+            }
             "rtlch" | "rtlpar" | "rtlrow" | "fbidi" => self.diagnostic(
                 "unsupported-bidirectional-text",
                 "Bidirectional text layout is not supported",
@@ -1213,10 +1401,20 @@ impl<'a> Parser<'a> {
             "listtext" => (Destination::ListText, false),
             "pntext" => (Destination::PnText, false),
             "fldrslt" => (Destination::Body, false),
-            "listtable" | "listoverridetable" | "pn" => {
+            "listtable" => (Destination::ListTable, false),
+            "listoverridetable" => (Destination::ListOverrideTable, false),
+            "leveltext" if self.state.destination == Destination::ListTable => {
+                self.level_buffer.clear();
+                (Destination::ListLevelText, false)
+            }
+            "levelnumbers" if self.state.destination == Destination::ListTable => {
+                self.level_buffer.clear();
+                (Destination::ListLevelNumbers, false)
+            }
+            "pn" => {
                 self.diagnostic(
                     "unsupported-list-semantics",
-                    "List numbering used its compatibility text representation",
+                    "Legacy paragraph numbering used its compatibility text representation",
                     offset,
                 );
                 (Destination::Suppress, true)
@@ -1607,15 +1805,30 @@ impl<'a> Parser<'a> {
         let text = String::from_utf16_lossy(&self.unit_buffer);
         self.unit_buffer.clear();
         let style = self.unit_style.take().unwrap_or_default();
+        if matches!(
+            self.state.destination,
+            Destination::ListLevelText | Destination::ListLevelNumbers
+        ) {
+            self.level_buffer.push_str(&text);
+            return Ok(());
+        }
+        let sink = if matches!(
+            self.state.destination,
+            Destination::ListText | Destination::PnText
+        ) {
+            &mut self.paragraph.list_text
+        } else {
+            &mut self.paragraph.runs
+        };
         if let Some(Run::Text {
             text: previous,
             style: previous_style,
-        }) = self.paragraph.runs.last_mut()
+        }) = sink.last_mut()
             && previous_style == &style
         {
             previous.push_str(&text);
         } else {
-            self.paragraph.runs.push(Run::Text { text, style });
+            sink.push(Run::Text { text, style });
         }
         Ok(())
     }
@@ -1647,14 +1860,27 @@ impl<'a> Parser<'a> {
         if self.paragraph_count > MAX_PARAGRAPHS {
             return Err(ParseError::ParagraphLimit);
         }
-        let builder = std::mem::replace(
+        let mut builder = std::mem::replace(
             &mut self.paragraph,
             ParagraphBuilder::new(self.state.paragraph.clone()),
         );
+        let offset = self.position;
+        self.apply_level_indents(&mut builder.style);
+        let list_marker = self.resolve_list_marker(&builder.style, offset);
+        // Drawing the generated number beside the writer's cached text would duplicate the
+        // marker, so the cached runs are used only where nothing resolved.
+        let runs = if list_marker.is_some() {
+            builder.runs
+        } else {
+            let mut runs = std::mem::take(&mut builder.list_text);
+            runs.append(&mut builder.runs);
+            runs
+        };
         let block = Block::Paragraph {
-            runs: builder.runs,
+            runs,
             style: builder.style.to_model(),
             mark_style: self.state.character.clone(),
+            list_marker,
         };
         // Between \trowd and \row every paragraph belongs to the cell being collected.
         if self.row.is_some() {
@@ -1671,6 +1897,239 @@ impl<'a> Parser<'a> {
         }
         self.blocks.push(block);
         Ok(())
+    }
+
+    fn list_table_control(&mut self, name: &str, parameter: Option<i32>, offset: usize) {
+        let depth = self.stack.len();
+        match name {
+            "list" => self.list_builder = Some((depth, ListDef::default())),
+            "listlevel" => self.level_builder = Some((depth, LevelDef::default())),
+            "listoverride" => self.override_builder = Some((depth, ListOverrideDef::default())),
+            "listid" => {
+                let value = parameter.unwrap_or(0);
+                if let Some((_, list)) = self.list_builder.as_mut() {
+                    list.id = value;
+                } else if let Some((_, over)) = self.override_builder.as_mut() {
+                    over.list_id = value;
+                }
+            }
+            "ls" => {
+                if let Some((_, over)) = self.override_builder.as_mut() {
+                    over.id = parameter.unwrap_or(0);
+                }
+            }
+            "lfolevel" => {
+                if let Some((_, over)) = self.override_builder.as_mut() {
+                    over.pending_level = over.starts.len().min(8) as u32;
+                }
+            }
+            "levelstartat" => {
+                let value = parameter.unwrap_or(1);
+                if let Some((_, level)) = self.level_builder.as_mut() {
+                    level.start_at = value;
+                } else if let Some((_, over)) = self.override_builder.as_mut() {
+                    let level = over.pending_level;
+                    over.starts.push((level, value));
+                }
+            }
+            "levelnfc" | "levelnfcn" => {
+                let Some((_, level)) = self.level_builder.as_mut() else {
+                    return;
+                };
+                match NumberFormat::from_nfc(parameter.unwrap_or(0)) {
+                    Some(format) => level.format = format,
+                    None => self.diagnostic(
+                        "unsupported-list-number-format",
+                        "An unsupported list number format was rendered as arabic numerals",
+                        offset,
+                    ),
+                }
+            }
+            "levelfollow" => {
+                if let Some((_, level)) = self.level_builder.as_mut() {
+                    level.follow = match parameter.unwrap_or(0) {
+                        1 => LevelFollow::Space,
+                        2 => LevelFollow::Nothing,
+                        _ => LevelFollow::Tab,
+                    };
+                }
+            }
+            "li" | "lin" => {
+                if let Some((_, level)) = self.level_builder.as_mut() {
+                    level.left_indent = Some(twips(parameter.unwrap_or(0)));
+                }
+            }
+            "fi" => {
+                if let Some((_, level)) = self.level_builder.as_mut() {
+                    level.first_line_indent = Some(twips(parameter.unwrap_or(0)));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Commit whatever list group just closed. Depths are recorded when the group opened.
+    fn close_list_groups(&mut self, parent: Destination) {
+        let depth = self.stack.len();
+        if matches!(
+            self.state.destination,
+            Destination::ListLevelText | Destination::ListLevelNumbers
+        ) && parent != self.state.destination
+        {
+            let buffer = std::mem::take(&mut self.level_buffer);
+            let chars: Vec<char> = buffer.chars().collect();
+            if let Some((_, level)) = self.level_builder.as_mut() {
+                if self.state.destination == Destination::ListLevelText {
+                    // \\leveltext is length prefixed; a writer that omits the prefix yields nothing.
+                    let take = chars.first().map_or(0, |first| {
+                        (*first as usize).min(chars.len().saturating_sub(1))
+                    });
+                    level.template = chars[1..1 + take].to_vec();
+                } else {
+                    // \\levelnumbers is not length prefixed: its bytes are the one-based offsets
+                    // into the template, terminated by the group's literal semicolon.
+                    level.placeholders = chars
+                        .iter()
+                        .take_while(|character| **character != ';')
+                        .map(|character| *character as u32)
+                        .collect();
+                }
+            }
+        }
+        if self
+            .level_builder
+            .as_ref()
+            .is_some_and(|(at, _)| *at > depth)
+            && let Some((_, level)) = self.level_builder.take()
+            && let Some((_, list)) = self.list_builder.as_mut()
+            && list.levels.len() < MAX_LIST_LEVELS
+        {
+            list.levels.push(level);
+        }
+        if self
+            .list_builder
+            .as_ref()
+            .is_some_and(|(at, _)| *at > depth)
+            && let Some((_, list)) = self.list_builder.take()
+            && self.lists.len() < MAX_LISTS
+        {
+            self.lists.insert(list.id, list);
+        }
+        if self
+            .override_builder
+            .as_ref()
+            .is_some_and(|(at, _)| *at > depth)
+            && let Some((_, over)) = self.override_builder.take()
+            && self.list_overrides.len() < MAX_LISTS
+        {
+            self.list_overrides.insert(over.id, over);
+        }
+    }
+
+    /// A list paragraph that declares no indents of its own takes the ones its level declares.
+    /// Resolved at flush, because `\ls` and `\ilvl` may arrive in either order.
+    fn apply_level_indents(&self, state: &mut ParagraphState) {
+        if state.explicit_indents {
+            return;
+        }
+        let Some(level) = self.level_for(state) else {
+            return;
+        };
+        if let Some(left) = level.left_indent {
+            state.left_indent = left;
+        }
+        if let Some(first) = level.first_line_indent {
+            state.first_line_indent = first;
+        }
+    }
+
+    fn level_for(&self, state: &ParagraphState) -> Option<&LevelDef> {
+        let over = self.list_overrides.get(&state.list_id?)?;
+        let list = self.lists.get(&over.list_id)?;
+        let index = (state.list_level as usize).min(list.levels.len().saturating_sub(1));
+        list.levels.get(index)
+    }
+
+    /// Advance this list's counters and render the marker. Called once per flushed paragraph,
+    /// in document order, so the counters follow the document rather than the layout.
+    fn resolve_list_marker(&mut self, style: &ParagraphState, offset: usize) -> Option<ListMarker> {
+        let list_id = style.list_id?;
+        let Some(over) = self.list_overrides.get(&list_id) else {
+            self.diagnostic(
+                "unresolved-list-reference",
+                "A paragraph names a list override that the document does not define",
+                offset,
+            );
+            return None;
+        };
+        let Some(list) = self.lists.get(&over.list_id) else {
+            self.diagnostic(
+                "unresolved-list-reference",
+                "A list override names a list that the document does not define",
+                offset,
+            );
+            return None;
+        };
+        if list.levels.is_empty() {
+            return None;
+        }
+
+        // Copy the small amount of definition this paragraph needs so the counters, which are
+        // owned by the same parser, can be updated without holding a borrow of the tables.
+        let requested = style.list_level as usize;
+        let level_count = list.levels.len();
+        let beyond_declared = requested >= level_count;
+        let index = requested.min(level_count - 1);
+        let starts: Vec<i32> = (0..level_count)
+            .map(|level| {
+                over.starts
+                    .iter()
+                    .find(|(at, _)| *at as usize == level)
+                    .map(|(_, value)| *value)
+                    .unwrap_or(list.levels[level].start_at)
+            })
+            .collect();
+        let formats: Vec<NumberFormat> = list.levels.iter().map(|level| level.format).collect();
+        let level = list.levels[index].clone();
+        if beyond_declared {
+            self.diagnostic(
+                "unsupported-list-level",
+                "A paragraph uses a list level the list does not define; its last level was used",
+                offset,
+            );
+        }
+
+        let counters = self.list_counters.entry(list_id).or_default();
+        counters.values.resize(level_count, None);
+        counters.values[index] = Some(match counters.values[index] {
+            Some(current) => current.saturating_add(1),
+            None => starts[index],
+        });
+        // A deeper level restarts once a shallower one advances.
+        for deeper in counters.values.iter_mut().skip(index + 1) {
+            *deeper = None;
+        }
+        let resolved: Vec<i32> = (0..level_count)
+            .map(|level| counters.values[level].unwrap_or(starts[level]))
+            .collect();
+
+        let mut text = String::new();
+        for (position, character) in level.template.iter().enumerate() {
+            if level.placeholders.contains(&(position as u32 + 1)) {
+                let target = (*character as usize).min(level_count - 1);
+                text.push_str(&formats[target].render(resolved[target]));
+            } else {
+                text.push(*character);
+            }
+        }
+        if text.is_empty() {
+            return None;
+        }
+        Some(ListMarker {
+            text,
+            follow: level.follow,
+            level: index as u32,
+        })
     }
 
     fn row_mut(&mut self) -> &mut RowBuilder {
@@ -2203,11 +2662,15 @@ fn apply_paragraph_control(state: &mut ParagraphState, name: &str, parameter: Op
         "qc" => state.align = ParagraphAlign::Center,
         "qr" => state.align = ParagraphAlign::Right,
         "qj" => state.align = ParagraphAlign::Justify,
-        "li" => state.left_indent = twips(parameter.unwrap_or(0)),
-        "ri" => state.right_indent = twips(parameter.unwrap_or(0)),
-        "lin" => state.left_indent = twips(parameter.unwrap_or(0)),
-        "rin" => state.right_indent = twips(parameter.unwrap_or(0)),
-        "fi" => state.first_line_indent = twips(parameter.unwrap_or(0)),
+        "li" | "lin" => {
+            state.left_indent = twips(parameter.unwrap_or(0));
+            state.explicit_indents = true;
+        }
+        "ri" | "rin" => state.right_indent = twips(parameter.unwrap_or(0)),
+        "fi" => {
+            state.first_line_indent = twips(parameter.unwrap_or(0));
+            state.explicit_indents = true;
+        }
         "sb" => state.space_before = twips(parameter.unwrap_or(0)),
         "sa" => state.space_after = twips(parameter.unwrap_or(0)),
         "sl" => state.line_spacing_twips = parameter.unwrap_or(0),

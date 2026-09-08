@@ -7,6 +7,8 @@ export type LineSpacing = { "kind": "auto" } | { "kind": "exact", "value": numbe
 export type TextStyle = { fontId: number, fontSize: number, bold: boolean, italic: boolean, underline: boolean, strike: boolean, color: number | null, highlight: number | null, hidden: boolean, baseline: number, };
 export type ParagraphStyle = { align: ParagraphAlign, leftIndent: number, rightIndent: number, firstLineIndent: number, spaceBefore: number, spaceAfter: number, lineSpacing: LineSpacing, pageBreakBefore: boolean, };
 export type Run = { "kind": "text", text: string, style: TextStyle, } | { "kind": "image", imageId: string, };
+export type LevelFollow = "tab" | "space" | "nothing";
+export type ListMarker = { text: string, follow: LevelFollow, level: number, };
 export type RowAlign = "left" | "center" | "right";
 export type RowHeight = { "kind": "auto" } | { "kind": "atLeast", "value": number } | { "kind": "exact", "value": number };
 export type BorderStyle = "single" | "double" | "dotted" | "dashed" | "other";
@@ -37,7 +39,12 @@ blocks: Array<Block>, padding: Padding, borders: CellBorders,
  * release still satisfies the public type.
  */
 verticalAlign?: VerticalAlign, shading?: CellShading, };
-export type Block = { "kind": "paragraph", runs: Array<Run>, style: ParagraphStyle, markStyle: TextStyle, } | { "kind": "pageBreak" } | { "kind": "row", cells: Array<TableCell>, 
+export type Block = { "kind": "paragraph", runs: Array<Run>, style: ParagraphStyle, markStyle: TextStyle, 
+/**
+ * Absent unless the paragraph belongs to a list whose definition resolved. Optional so
+ * that a model written by an older minor release still satisfies the public type.
+ */
+listMarker?: ListMarker, } | { "kind": "pageBreak" } | { "kind": "row", cells: Array<TableCell>, 
 /**
  * Left edge of the row in points, measured from the left page margin.
  */

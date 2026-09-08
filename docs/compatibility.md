@@ -14,6 +14,7 @@ All synthetic files and image sources are original CC0 material. Run `python3 sc
 | `explicit-pages.rtf`        | Explicit page breaks                                             | Exactly three Letter pages containing one marker each: page one, page two, and page three.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `indents-spacing.rtf`       | First-line and hanging indents plus paragraph/line spacing       | One Letter page with 90 pt horizontal and 72 pt vertical margins. Paragraph 1 has left/right indents of 36 pt, a +18 pt first-line indent, 12 pt before, and 18 pt after: first-line x = 144 pt, continuation x = 126 pt, right edge = 486 pt. Paragraph 2 has a 54 pt left indent and -18 pt first-line indent: first-line x = 126 pt, continuation x = 144 pt; its line spacing is 1.5 lines.                                                                                                                                                                                                                                     |
 | `inline-png-jpeg.rtf`       | Inline raster image decoding                                     | One Letter page; one PNG and one JPEG, each declares 16 × 12 source pixels and 720 × 540 twip goals, so each layout rectangle is 36 × 27 pt. Embedded payload bytes equal the adjacent files in `assets/`.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `list-numbering.rtf`        | Generated list numbering                                         | One 216 × 216 pt page with 18 pt margins. One list table declares an arabic level and a lower-letter level whose template names both counters; a second declares a bullet level; a third override restarts at seven. The resolved markers are `1.`, `2.`, `2.a)`, `2.b)`, `3.`, `•`, `•`, `7.`, `8.`. Level one hangs at 18 pt and level two at 36 pt, each with a 9 pt hanging first line, so first lines begin at x = 27 and 45 pt. Every paragraph also carries a cached `CACHED` marker that the resolved number replaces.                                                                                                      |
 | `ordinary-table.rtf`        | Single-level table geometry, borders and cross-page continuation | Exactly two 216 × 216 pt pages with 18 pt margins. Three columns end at 60, 120 and 180 pt from the left margin; every cell has 3 pt horizontal and 2 pt vertical padding, so content begins at x = 21, 81 and 141 pt. Outer borders are 1 pt and inner borders 0.5 pt, each centred on its boundary. Rows start at y = 18, 34, 50, 78 and 102 pt; the fourth row uses an exact 24 pt height. The last row is 8 lines tall, breaks after its seventh line at y = 188 pt and continues at the top of page two, where `After the table.` follows at y = 32 pt. Exact 12 pt line spacing keeps every position independent of the font. |
 | `table-cell-fill-align.rtf` | Vertical cell alignment and cell shading                         | One 216 × 216 pt page with 18 pt margins, the same three columns and padding as `ordinary-table.rtf`. The header row declares `\trcbpat`, so all three cells fill with `#e6e6e6` over y = 18–34 pt. In the second row a `\clshdng5000` blend of `#205493` over `#e6e6e6` fills `#839dbd` over y = 34–62 pt, and beside that two-line cell the centred line sits at y = 42 pt and the bottom-aligned line at y = 48 pt. The third row has an exact 24 pt height, so its centred line sits at y = 68 pt while its plain neighbours sit at 64 pt. `After the table.` follows at y = 86 pt.                                             |
 | `table-merged-cells.rtf`    | Horizontally merged cells                                        | One 216 × 216 pt page with the same three columns and padding as `ordinary-table.rtf`. The header merges the first two columns, so its cell reaches 120 pt from the left margin and no wall is drawn on the 78 pt boundary; the last row merges the final two, so no wall is drawn on the 138 pt boundary. The middle row keeps all three columns and all four walls. Every row is one line tall, because a merged-away cell contributes no blank line, so rows start at y = 18, 34 and 50 pt and `After the table.` follows at y = 66 pt.                                                                                          |
@@ -126,18 +127,39 @@ The engine was run against this file through the production-built harness with t
 
 Every remaining delta above is recorded in `fixtures/corpus.json` with its measurement and the issue that tracks it. Vertical cell alignment was an open `layout` delta until issue #25; the producer's centring is now reproduced and only the line-box residual remains inside the row. The pitch delta accumulates: by the end of the table the engine is roughly one row ahead, so page three begins with `Zone 10` rather than `Total`. Page count, column geometry and in-cell line breaking match; vertical alignment, the producer's extra border inset and the continuation rule do not. This comparison does not claim general LibreOffice table fidelity beyond this fixture.
 
+## Real LibreOffice list artifact
+
+`fixtures/real/libreoffice-24.2.7.2-list.rtf` is a real LibreOffice export with the same provenance as the table artifact above; the exact packages and font hashes are in `fixtures/corpus.json`. It declares four lists and nine `\listoverride` entries, and uses `\levelnfc0`, `\levelnfc23` and `\levelnfc255`, `\levelfollow0` and `\levelfollow2`, and both `\levelstartat1` and `\levelstartat7`.
+
+The engine resolves its numbering from the list table rather than from the cached `\listtext`, and the result is identical to Poppler's extraction of the producer's own PDF, marker for marker:
+
+| Reference marker | Engine marker | Level |
+| ---------------- | ------------- | ----- |
+| `1.`             | `1.`          | 0     |
+| `2.`             | `2.`          | 0     |
+| `1.`             | `1.`          | 1     |
+| `2.`             | `2.`          | 1     |
+| `3.`             | `3.`          | 0     |
+| `•`              | `•`           | 0     |
+| `•`              | `•`           | 0     |
+| `7.`             | `7.`          | 0     |
+| `8.`             | `8.`          | 0     |
+
+The deeper level restarts under each parent and the override's start value of seven is honoured. The one recorded delta is that the producer pads its cached marker with a leading space the generated marker does not reproduce; the level template declares only the placeholder and a full stop, so that space is the producer's own padding rather than something the document asks for.
+
 ## Artifact hashes
 
 These SHA-256 values identify the exact committed evidence. A regenerated PDF will normally differ because LibreOffice writes creation metadata; use the geometry and content assertions above when validating a new export.
 
 | File                                                       | SHA-256                                                            |
 | ---------------------------------------------------------- | ------------------------------------------------------------------ |
-| `scripts/generate-reference.py`                            | `1980e2ccc31a068d23b00b34f2a3e7919790d4bcdc32d0025c5f3ef63fad8149` |
+| `scripts/generate-reference.py`                            | `2246552e6f595e4e045bda2ebf4396a40342f721e8a35f6b7ba7d3e8e7bb2728` |
 | `fixtures/synthetic/automatic-pagination.rtf`              | `a0ab18dee28ec428950996d17ff90264ee1117c0c18081155863b133b1639f82` |
 | `fixtures/synthetic/common-text-styles.rtf`                | `2e5b38277d97700e4c2ccf17207b5db0c4c3f979aed5c5b4d70af9484f8ad916` |
 | `fixtures/synthetic/explicit-pages.rtf`                    | `e8b1d2c5984eeeed2fba1e6a41251b25ba1fb21f7171a5495b86d6128f5ffe14` |
 | `fixtures/synthetic/indents-spacing.rtf`                   | `1a8e4000ab32d3f834efcb805269ca0b4ee19766c3e1078900ab607fadda048a` |
 | `fixtures/synthetic/inline-png-jpeg.rtf`                   | `a1d435caffb685306a6b164126d216c390e65275d58dcfadb7109a2a34224d0b` |
+| `fixtures/synthetic/list-numbering.rtf`                    | `4c0d798dd8788718865cbb725f7dd9d7385d987443c924fae68cd5e37dc42ab0` |
 | `fixtures/synthetic/ordinary-table.rtf`                    | `66ac0a4be1ff97861e245f0493d782f3d06e50773612865c8d0bcb5eceb9ee25` |
 | `fixtures/synthetic/table-cell-fill-align.rtf`             | `47a804b3e15697f9067536d665372ac5d4dfc4e3e92d3bb25aafb4f766802cf1` |
 | `fixtures/synthetic/table-merged-cells.rtf`                | `368fd13e24e8b6d9322fd676572ad2525b4e466a42aa24013fa8e1f25a7b0ef1` |
@@ -157,5 +179,10 @@ These SHA-256 values identify the exact committed evidence. A regenerated PDF wi
 | `fixtures/reference/libreoffice-24.2.7.2-table-page-1.png` | `3ba02f5d16f6133b3c9d8f93c5cece45c5602efe4c99294e978282678bee7fa3` |
 | `fixtures/reference/libreoffice-24.2.7.2-table-page-2.png` | `b7c9dc3184b5a24b3de74a4b47ccda04765109371a0f584f33e02c3e9eb26946` |
 | `fixtures/reference/libreoffice-24.2.7.2-table-page-3.png` | `b2c4346c6c1ec2eaf7fc2aad2027fb46f95f0643fda6a7fe93081a0afc5c59e9` |
+| `fixtures/real/libreoffice-24.2-list-source.html`          | `812372516d0603ffe72429f0fdfb76ae7876bba9bb062595470615206203363b` |
+| `fixtures/real/libreoffice-24.2.7.2-list.rtf`              | `bfb36cebd2ca9e9318f59a8f392a2ffe21d7001cc61581cc143561e493eaf290` |
+| `fixtures/reference/libreoffice-24.2.7.2-list.pdf`         | `949fa19f4befef6b0a6012c7800cd5b60059b64c739d84861045bb566978d703` |
+| `fixtures/reference/libreoffice-24.2.7.2-list.txt`         | `26e2886a7bd5ca99aa50f2281609894acdd4df33881c72832e633070001460c4` |
+| `fixtures/reference/libreoffice-24.2.7.2-list-page-1.png`  | `35ccaedee29101b41c17ccf8e87ac3cd86bc9a41a8731caac7815ec418ec0a92` |
 
 No Microsoft Word or Apple TextEdit producer artifact is included because neither producer was available. Their compatibility remains unverified; no handcrafted fixture is labeled as either producer. See [corpus](corpus.md) for how to add one.
