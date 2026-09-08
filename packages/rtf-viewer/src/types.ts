@@ -1,4 +1,4 @@
-import type { Diagnostic, DocumentModel, TextStyle } from './generated/model.js';
+import type { Diagnostic, TextStyle } from './generated/model.js';
 export type { Diagnostic, DocumentModel, TextStyle } from './generated/model.js';
 
 export type RtfInput = Blob | ArrayBuffer | Uint8Array;

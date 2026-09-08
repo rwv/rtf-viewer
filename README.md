@@ -73,7 +73,7 @@ pnpm exec playwright install --with-deps chromium firefox webkit
 pnpm check
 ```
 
-`pnpm check` covers native Rust, generated contracts, deterministic layout, typed browser/Worker/build code, production browser tests, and a fresh npm installation of the packed archive. See [testing](https://github.com/rwv/rtf-viewer/blob/main/docs/testing.md) for individual commands and independent reference outputs.
+`pnpm check` covers formatting, lint, Rust format/clippy/tests, generated contracts, deterministic layout, typed browser/Worker/build code, production browser tests, and a fresh npm installation of the packed archive. The [contributor guide](https://github.com/rwv/rtf-viewer/blob/main/CONTRIBUTING.md) describes fast checks, required CI gates, and dependency updates. See [testing](https://github.com/rwv/rtf-viewer/blob/main/docs/testing.md) for individual commands and independent reference outputs.
 
 ## Releases and contributing
 

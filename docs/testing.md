@@ -57,3 +57,7 @@ Upstream commit updates use the same complete CI gate. The Git submodule is init
 The independent visual test compares the actual LibreOffice-generated reference PNG with engine ink using a documented four-pixel neighborhood at 96 PPI, paired with exact line text, page count, physical size and indent assertions. It is a tolerant regression check for one known producer document, not a general fidelity score. No project-generated image is used as its own correctness oracle.
 
 Use `pnpm generate:types` after model changes; `pnpm check:contract` must pass before committing. Test outputs, screenshots, packed archives and size measurements are written to ignored `artifacts/` or `test-results/`. Reference generation needs LibreOffice/Pillow/Poppler but ordinary CI consumes the committed licensed artifacts and does not require those tools.
+
+## Engineering gate
+
+`pnpm check` also runs Prettier, selected Oxlint correctness/Promise rules, Rust fmt/clippy, and all four TypeScript configurations. `quality` runs formatting, syntax lint, workflow validation and PR title validation before browser setup; `verify` runs the full gate. Both Playwright configurations and Vitest reject focused tests in CI. See [CONTRIBUTING.md](../CONTRIBUTING.md) for commands and generated/upstream exclusions.

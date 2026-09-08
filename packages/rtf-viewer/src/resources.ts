@@ -4,6 +4,7 @@ import { abortable, checkAbort } from './lifecycle.js';
 import { sniffRasterDimensions } from './vendor/raster-dimensions.js';
 
 const GENERIC_FONT_FAMILIES = new Set(['serif', 'sans-serif', 'monospace', 'system-ui']);
+// oxlint-disable-next-line eslint/no-control-regex -- Strip control bytes from untrusted font names.
 const sanitizeFontFamily = (name: string) => name.replace(/[\r\n\x00-\x1f]/g, '').slice(0, 200);
 const fontFamilyKey = (name: string) => sanitizeFontFamily(name).toLowerCase();
 

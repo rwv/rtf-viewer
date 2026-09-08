@@ -20,3 +20,5 @@
 - Keep upstream source unmodified in its pinned submodule. Put RTF policy in the local adapter; test upstream updates through the complete package/browser gate. Never install or build the upstream workspace as part of this project's build.
 - Prefer standard Cargo, pnpm, npm, GitHub CLI and Release Please commands to custom orchestration. Project build/release Node code must be TypeScript and included in type checking; historical isolated experiments are not production tooling.
 - Use Conventional Commit PR titles and squash merges. Release Please owns npm/workspace versions, changelog, tags and GitHub Releases; normal releases do not require manual version edits or tags. The unpublished Rust crate version is independent.
+
+- Follow CONTRIBUTING.md for format/lint and the shared local/CI/release gate. Never format generated contracts or upstream sources. Keep browser, Worker and Node type environments separate. Focused tests must fail in CI.

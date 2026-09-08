@@ -9,7 +9,7 @@ type Measured = { kind: 'text'; part: Part; width: number; ascent: number; desce
   | { kind: 'image'; id: string; width: number; ascent: number; descent: number };
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 const cjk = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
-const opening = /[（［｛〈《「『【〔〖〘〚“‘(\[{]$/u;
+const opening = /[（［｛〈《「『【〔〖〘〚“‘([{]$/u;
 const closing = /^[、。，．？！：；）］｝〉》」』】〕〗〙〛”’!?,.;:)\]}]/u;
 
 async function tokenize(paragraph: Paragraph, signal?: AbortSignal): Promise<Token[]> {

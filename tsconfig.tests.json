@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "vite/client"
+    ]
+  },
+  "include": [
+    "packages/**/*.test.ts",
+    "tests/**/*.ts",
+    "examples/viewer/src/test-harness.ts",
+    "*.config.ts",
+    "packages/rtf-viewer/src/**/*.d.ts"
+  ],
+  "exclude": [
+    "tests/consumer"
+  ]
+}

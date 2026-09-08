@@ -2,17 +2,19 @@ import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/test-harness.html');
-  await page.waitForFunction(() => Boolean((window as any).__rtfTest));
+  await page.waitForFunction(() => Boolean(window.__rtfTest));
 });
 
 test('WASM understands Unicode, scoped styles, codepages and ignorable destinations', async ({ page }) => {
   const requests: string[] = [];
   page.on('response', (response) => { if (response.url().includes('.wasm')) requests.push(`${response.status()}`); });
   const result = await page.evaluate(async () => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     const input = String.raw`{\rtf1\ansi\ansicpg1252{\fonttbl{\f0\fcharset0 Liberation Serif;}{\f1\fcharset134 Noto Serif CJK SC;}}\f0 Base {\b Bold} plain \u20013?\u25991? {\*\future SECRET} \f1\'d6\'d0\'ce\'c4\par}`;
     const doc = await RtfDocument.load(new TextEncoder().encode(input), { fonts: { 'Liberation Serif': 'Rtf Liberation Serif' } });
-    const runs = doc.model.blocks[0].runs;
+    const paragraph = doc.model.blocks[0];
+    if (paragraph.kind !== 'paragraph') throw new Error('Expected a paragraph');
+    const runs = paragraph.runs;
     const result = { text: runs.map((r: any) => r.text ?? '').join(''), bold: runs.filter((r: any) => r.style?.bold).map((r: any) => r.text).join(''), diagnostics: doc.diagnostics.map((d: any) => d.code), pages: doc.pageCount };
     doc.destroy(); return result;
   });
@@ -28,7 +30,7 @@ test('WASM understands Unicode, scoped styles, codepages and ignorable destinati
 
 test('font mappings ignore inherited object properties', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     const input = String.raw`{\rtf1{\fonttbl{\f0\fnil toString;}}\f0 Inherited font key\par}`;
     const doc = await RtfDocument.load(new TextEncoder().encode(input), { fonts: {} });
     const text = doc.getPageLayout(0).lines
@@ -43,7 +45,7 @@ test('font mappings ignore inherited object properties', async ({ page }) => {
 
 test('independent exact-line fixture paginates 15 + 9 with resolution-invariant geometry', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     const bytes = await (await fetch('/samples/automatic-pagination.rtf')).arrayBuffer();
     const doc = await RtfDocument.load(bytes, { fonts: { 'Liberation Serif': 'Rtf Liberation Serif' } });
     const before = JSON.stringify([doc.getPageLayout(0), doc.getPageLayout(1)]);
@@ -64,7 +66,7 @@ test('independent exact-line fixture paginates 15 + 9 with resolution-invariant 
 
 test('inline PNG and JPEG use authored dimensions and paint the declared regions', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     const doc = await RtfDocument.load(await (await fetch('/samples/inline-png-jpeg.rtf')).arrayBuffer(), { fonts: {} });
     const images = doc.getPageLayout(0).lines.flatMap((l: any) => l.fragments).filter((f: any) => f.kind === 'image');
     const canvas = document.createElement('canvas'); await doc.renderPage(canvas, 0, { ppi: 72 });
@@ -81,7 +83,7 @@ test('inline PNG and JPEG use authored dimensions and paint the declared regions
 
 test('abort terminates dedicated Workers and rejects pre-aborted loads', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     const NativeWorker = window.Worker;
     let created = 0, terminated = 0;
     window.Worker = class extends NativeWorker {
@@ -104,7 +106,7 @@ test('abort terminates dedicated Workers and rejects pre-aborted loads', async (
 
 test('concurrent targets work; contention, destroy and borrowed ownership are deterministic', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const { RtfDocument, RtfViewer } = (window as any).__rtfTest;
+    const { RtfDocument, RtfViewer } = window.__rtfTest;
     const doc = await RtfDocument.load(new TextEncoder().encode('{\\rtf1 Hello\\par}'), { fonts: {} });
     const a = document.createElement('canvas'), b = document.createElement('canvas');
     const first = doc.renderPage(a, 0);
@@ -129,7 +131,7 @@ test('concurrent targets work; contention, destroy and borrowed ownership are de
 
 test('font completion filters empty and unrelated batches but invalidates a relevant family', async ({ page, browserName }) => {
   const result = await page.evaluate(async (expectNativeCompletion) => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     const doc = await RtfDocument.load(
       new TextEncoder().encode(String.raw`{\rtf1{\fonttbl{\f0\fnil Lifecycle Source;}{\f1\fnil Rtf Lifecycle Unrelated;}}\f0 WWWWWWiiiiii font revision\par}`),
       { fonts: { 'Lifecycle Source': 'Rtf Lifecycle Relevant' } },
@@ -213,7 +215,7 @@ test('font completion filters empty and unrelated batches but invalidates a rele
 
 test('rejects malformed input and image allocation bombs before browser decode', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     const bad = await RtfDocument.load(new TextEncoder().encode('not rtf')).then(() => 'resolved', (e: Error) => e.message);
     const signature = '89504e470d0a1a0a0000000d494844520000ea600000ea60';
     const image = String.raw`{\rtf1{\pict\pngblip\picwgoal100\pichgoal100 ` + signature + '}}';
@@ -230,7 +232,7 @@ test('real LibreOffice sample matches independent page/text geometry and nearby 
   expect(reference.ok()).toBe(true);
   const referenceBytes = [...await reference.body()];
   const result = await page.evaluate(async (referenceBytes) => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     await document.fonts.load('18px "Rtf Liberation Sans"');
     await document.fonts.load('bold 18px "Rtf Liberation Sans"');
     await document.fonts.load('12px "Rtf Free Sans"', '中文');
@@ -275,7 +277,7 @@ test('real LibreOffice sample matches independent page/text geometry and nearby 
 
 test('font changes during measurement cannot publish mixed geometry', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     const proto = OffscreenCanvasRenderingContext2D.prototype;
     const original = proto.measureText;
     const relevantFace = new FontFace('Rtf Race Font', 'local("serif")');
@@ -301,7 +303,7 @@ test('font changes during measurement cannot publish mixed geometry', async ({ p
 
 test('malformed Worker replies terminate without waiting for the parser timeout', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     const url = URL.createObjectURL(new Blob(['self.onmessage = () => self.postMessage(null);'], { type: 'text/javascript' }));
     const started = performance.now();
     try {
@@ -315,7 +317,7 @@ test('malformed Worker replies terminate without waiting for the parser timeout'
 
 test('an image bitmap that finishes decoding after load abort is closed', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const { RtfDocument } = (window as any).__rtfTest;
+    const { RtfDocument } = window.__rtfTest;
     const original = window.createImageBitmap;
     const controller = new AbortController();
     let late: ImageBitmap | undefined;
@@ -338,7 +340,7 @@ test('an image bitmap that finishes decoding after load abort is closed', async 
 
 test('destroying an owning viewer while loading aborts its pending acquisition', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const { RtfViewer } = (window as any).__rtfTest;
+    const { RtfViewer } = window.__rtfTest;
     const viewer = new RtfViewer(document.createElement('canvas'));
     const loading = viewer.load(new TextEncoder().encode('{\\rtf1 pending}'));
     viewer.destroy(); viewer.destroy();
