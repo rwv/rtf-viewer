@@ -89,9 +89,12 @@ jobs:
 
   npm:
     needs: [verify, github-release]
-    if: vars.NPM_TRUSTED_PUBLISHING == 'true' || inputs.publish_npm == true
+    if: (github.event_name == 'push' && vars.NPM_TRUSTED_PUBLISHING == 'true') || (github.event_name == 'workflow_dispatch' && inputs.publish_npm == true)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/rtf-viewer
     permissions:
       contents: read
       id-token: write

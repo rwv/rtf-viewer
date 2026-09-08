@@ -2,23 +2,23 @@
 
 `rtf-viewer` is a standalone, read-only RTF document engine for modern browsers. It parses original bytes in a WebAssembly Worker, lays out every page in points, and paints retained page geometry to Canvas 2D or caller-owned `ImageBitmap` objects. It has no framework dependency and does not use a conversion service.
 
-Version 1.0.0 is the supported public API baseline. It deliberately implements a bounded subset of RTF rather than claiming complete format fidelity. Unicode and common Windows/East Asian codepages, direct text formatting, paragraph layout, pagination, and inline PNG/JPEG pictures are supported within the documented limits. Tables and lists have text fallbacks only; stylesheet inheritance, headers/footers, section-specific page geometry, and WMF/EMF drawing remain incomplete. See the [support matrix](https://github.com/rwv/rtf-viewer/blob/main/docs/support-matrix.md) before choosing it for a document corpus.
+The 1.x line is the supported public API baseline. It deliberately implements a bounded subset of RTF rather than claiming complete format fidelity. Unicode and common Windows/East Asian codepages, direct text formatting, paragraph layout, pagination, and inline PNG/JPEG pictures are supported within the documented limits. Tables and lists have text fallbacks only; stylesheet inheritance, headers/footers, section-specific page geometry, and WMF/EMF drawing remain incomplete. See the [support matrix](https://github.com/rwv/rtf-viewer/blob/main/docs/support-matrix.md) before choosing it for a document corpus.
 
 ## Install
 
-The v1.0.0 GitHub Release archive is the initial distribution path:
-
-```sh
-npm install https://github.com/rwv/rtf-viewer/releases/download/v1.0.0/rtf-viewer-1.0.0.tgz
-```
-
-The release also includes `SHA256SUMS`; verify the archive against it when your installation process requires an integrity check.
-
-The npm name is `rtf-viewer`; its first registry publication is pending npm account authentication. After version 1.0.0 is visible on the npm registry, the usual command is:
+Install the current release from npm:
 
 ```sh
 npm install rtf-viewer
 ```
+
+The same package archive is attached to the GitHub Release as a registry-independent fallback:
+
+```sh
+npm install https://github.com/rwv/rtf-viewer/releases/download/v1.0.1/rtf-viewer-1.0.1.tgz
+```
+
+The release also includes `SHA256SUMS`; verify the archive against it when your installation process requires an integrity check.
 
 Package consumers need only the shipped ESM JavaScript, declarations, parser Worker, and WASM assets. They do not need Rust, wasm-bindgen, or this source checkout.
 

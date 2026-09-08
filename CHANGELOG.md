@@ -2,6 +2,16 @@
 
 This project follows [Semantic Versioning](https://semver.org/). RTF feature coverage can grow in compatible minor releases; the public model and layout evolution rules are documented in the [README](https://github.com/rwv/rtf-viewer#public-api-and-versioning).
 
+## 1.0.1 - 2026-09-07
+
+Released 7 September 2026. Documentation and publishing update only; runtime behavior and RTF support are unchanged from 1.0.0.
+
+### Changed
+
+- Made the published npm package the primary installation path and updated the GitHub archive fallback.
+- Recorded the completed v1.0.0 bootstrap publication and the GitHub Actions OIDC release procedure.
+- Bound the npm publishing job to the `npm` GitHub Environment; version tags publish automatically, and manual runs respect the `publish_npm` input.
+
 ## 1.0.0
 
 Released 7 September 2026. First supported public API baseline.

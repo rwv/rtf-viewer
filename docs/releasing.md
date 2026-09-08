@@ -51,33 +51,43 @@ Its verification job installs the pinned Node, pnpm, Rust, wasm-bindgen, and Chr
 - `SHA256SUMS` containing the archive digest; and
 - `package-manifest.json` and `package-verification.json`.
 
-The version's `CHANGELOG.md` section supplies the release notes. The initial GitHub archive is also the installation fallback while the npm package is unavailable.
+The version's `CHANGELOG.md` section supplies the release notes. The GitHub archive remains a registry-independent installation fallback.
 
 To rerun an existing tag without requesting npm publication, open **Actions → Release → Run workflow**, enter the exact tag, leave `publish_npm` false, and dispatch it. A rerun may recreate a missing GitHub Release from the same verified archive, but it must not replace artifacts for an already published release with different bytes.
 
 ## npm trusted publishing
 
-npm publication is disabled until the package and trusted publisher are configured. The release workflow may enter its npm job only when repository variable `NPM_TRUSTED_PUBLISHING` is `true` or a maintainer explicitly dispatches an existing tag with `publish_npm` set to `true`. Leave both paths disabled during initial GitHub-only releases.
+`rtf-viewer@1.0.0` was created once by npm owner `seedgou` with login and two-factor authentication. The owner published the exact GitHub Release archive whose SHA-256 is `902acb83768fbe3b8aeec845cd0d0cec2bebdc49fa69748b502a4fcc6a55b7d0`; the tag and release assets remain immutable. This bootstrap used no repository or GitHub Actions token and did not receive automatic CI provenance.
 
-The first `rtf-viewer` package must be bootstrapped by an npm owner with login and two-factor authentication. Use the already verified GitHub Release archive for that one-time creation, verify it with `SHA256SUMS`, and do not rebuild it locally:
+All later versions publish through GitHub Actions OIDC. The trusted publisher and GitHub configuration are:
+
+- npm package: `rtf-viewer`;
+- GitHub owner/repository: `rwv/rtf-viewer`;
+- workflow: `release.yml`;
+- GitHub Environment: `npm`;
+- environment deployment refs: branch `main` for manual dispatch and tags matching `v*`;
+- environment reviewers: none;
+- npm direct publishing: allowed;
+- repository variable: `NPM_TRUSTED_PUBLISHING=true`.
+
+The `npm trust` configuration command requires npm 11.15 or newer. Maintainers use npm 11.19.1 for publisher configuration without replacing the globally installed CLI:
 
 ```sh
-npm install --global npm@11.6.2 --ignore-scripts
-sha256sum --check SHA256SUMS
-npm login --registry=https://registry.npmjs.org/
-npm publish ./rtf-viewer-1.0.0.tgz --access public --tag latest --ignore-scripts
+npm exec --yes --package=npm@11.19.1 -- npm trust github rtf-viewer \
+  --repo rwv/rtf-viewer \
+  --file release.yml \
+  --env npm \
+  --allow-publish \
+  --yes \
+  --browser=false \
+  --registry=https://registry.npmjs.org/
 ```
 
-Complete the account's second-factor prompt when npm requests it. No npm automation token is needed in the repository or GitHub Actions secrets.
+The release job can continue using its pinned npm 11.6.2 because it satisfies npm's OIDC publishing minimum.
 
-After the npm package exists:
+The npm publish job is a separate GitHub-hosted job assigned to environment `npm`, with repository contents read access and `id-token: write`. It downloads the archive produced by the verification job, verifies its SHA-256 digest and consumer-test report, checks whether that exact version already exists, and publishes the same file. An existing version with the same registry integrity is a successful no-op; conflicting bytes fail the workflow. OIDC publication of a public package from a public repository automatically receives provenance. No npm authentication token belongs in the repository, GitHub environment, repository secrets, workflow logs, or release artifacts. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) and [npm publishing requirements](https://docs.npmjs.com/creating-and-publishing-unscoped-public-packages/).
 
-1. Configure npm trusted publishing for `rwv/rtf-viewer` and workflow file `release.yml`. Leave the environment field empty because this workflow does not declare one. Explicitly allow direct `npm publish` for this publisher; new configurations otherwise allow staged publishing only.
-2. Confirm the npm package requires two-factor authentication or trusted publishing for releases.
-3. Set the repository variable `NPM_TRUSTED_PUBLISHING` to `true` only after the OIDC relationship is active.
-4. Use the next unpublished version tag for the first OIDC publication. A manual `publish_npm: true` dispatch is only appropriate for a tag whose version is not already present on npm. A rerun of a version that was bootstrapped directly must verify the matching registry archive and skip publication rather than trying to replace it.
-
-The npm publish job remains a separate GitHub-hosted job with repository contents read access and `id-token: write`. It uses Node 24 and npm 11.6.2, downloads the archive produced by the verification job, verifies its SHA-256 digest, and publishes that same file. OIDC publication of a public package from a public repository automatically receives provenance. The one-time local bootstrap does not receive that automatic CI provenance. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) and [npm publishing requirements](https://docs.npmjs.com/creating-and-publishing-unscoped-public-packages/).
+For normal releases, the `NPM_TRUSTED_PUBLISHING` variable lets a pushed `v*` tag proceed automatically after GitHub Release creation. Manual dispatch from `main` still requires an existing version tag and may request publication with `publish_npm: true`; the environment's deployment policy admits only the configured branch and tag patterns.
 
 ## Post-release checks
 
@@ -85,5 +95,5 @@ After the workflow completes:
 
 1. Confirm the GitHub Release tag, notes, archive, checksum file, and verification report.
 2. Download the archive, verify `SHA256SUMS`, install it in a fresh browser application, and confirm its Worker and WASM requests succeed.
-3. If npm publication was requested, confirm the exact version is visible on the registry and that its archive digest matches the release artifact before changing the README's npm-availability wording.
+3. If npm publication was requested, confirm the exact version is visible on the registry, has provenance for an OIDC release, and matches the GitHub Release archive before updating the verification record.
 4. Record any remote-only failure as a release blocker. Local results in [verification](verification.md) remain local evidence until the corresponding GitHub Actions run passes.
