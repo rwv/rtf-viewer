@@ -1689,6 +1689,8 @@ fn encoding_for_codepage(codepage: i32) -> Option<&'static Encoding> {
         936 => b"gbk",
         949 => b"euc-kr",
         950 => b"big5",
+        1200 => b"utf-16le",
+        1201 => b"utf-16be",
         1250 => b"windows-1250",
         1251 => b"windows-1251",
         1252 | 819 => b"windows-1252",
@@ -1700,7 +1702,25 @@ fn encoding_for_codepage(codepage: i32) -> Option<&'static Encoding> {
         1258 => b"windows-1258",
         10000 => b"macintosh",
         10001 => b"x-mac-japanese",
+        10007 => b"x-mac-cyrillic",
         20866 => b"koi8-r",
+        21866 => b"koi8-u",
+        28592 => b"iso-8859-2",
+        28593 => b"iso-8859-3",
+        28594 => b"iso-8859-4",
+        28595 => b"iso-8859-5",
+        28596 => b"iso-8859-6",
+        28597 => b"iso-8859-7",
+        28598 => b"iso-8859-8",
+        28600 => b"iso-8859-10",
+        28603 => b"iso-8859-13",
+        28604 => b"iso-8859-14",
+        28605 => b"iso-8859-15",
+        28606 => b"iso-8859-16",
+        38598 => b"iso-8859-8-i",
+        51932 => b"euc-jp",
+        51949 => b"euc-kr",
+        54936 => b"gb18030",
         65001 => b"utf-8",
         _ => return None,
     };
@@ -1708,10 +1728,10 @@ fn encoding_for_codepage(codepage: i32) -> Option<&'static Encoding> {
 }
 
 fn decode_bytes(bytes: &[u8], codepage: i32) -> (String, bool) {
-    if bytes.iter().all(u8::is_ascii) {
+    let encoding = encoding_for_codepage(codepage).unwrap_or(encoding_rs::WINDOWS_1252);
+    if encoding.is_ascii_compatible() && bytes.iter().all(u8::is_ascii) {
         return (String::from_utf8_lossy(bytes).into_owned(), false);
     }
-    let encoding = encoding_for_codepage(codepage).unwrap_or(encoding_rs::WINDOWS_1252);
     let (text, had_errors) = encoding.decode_without_bom_handling(bytes);
     (text.into_owned(), had_errors)
 }

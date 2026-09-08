@@ -7,8 +7,12 @@ export default defineConfig({
   expect: { timeout: 8_000 },
   fullyParallel: false,
   reporter: 'line',
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+  ],
   use: {
-    ...devices['Desktop Chrome'],
     baseURL: 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
   },
