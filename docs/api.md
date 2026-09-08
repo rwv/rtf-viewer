@@ -54,9 +54,32 @@ const rtf = await RtfDocument.load(bytes, {
 });
 ```
 
-Measurement and paint use the same font configuration. Browser font events set `rtf.needsRelayout`; call `await rtf.relayout()` before rendering again. System-font changes that do not emit an event require an explicit relayout too.
+Measurement and paint use the same font configuration. A browser font-completion event sets `rtf.needsRelayout` when it contains a font family used by the document's text, paragraph marks, or configured fallback. Empty events and completions for known unrelated families are ignored; a completion for a used family invalidates conservatively even if only some weights or characters may be affected. System-font changes, already-loaded faces added to `document.fonts`, and other changes that do not emit a completion event still require an explicit relayout. WebKit may omit `loadingdone` for a script-initiated font load, so a host that adds or loads a font itself must call `relayout()` and refresh its caches after that operation rather than relying only on the event.
 
-Backing pixels are `ceil(points × ppi / 72 × scale × pixelRatio)` on each axis. The defaults are `ppi: 96`, `scale: 1`, and `pixelRatio: 1`. These paint settings do not change line breaks or page count. Canvas CSS size belongs to the caller.
+The host owns page-count snapshots and rendered-page caches, so relayout remains explicit. Cache rendered pages under `rtf.layoutRevision`; never reuse entries from an older revision. To react to browser font loading, subscribe after loading the RTF document, then check `needsRelayout` after the engine's listener has processed the event. The following pattern serializes refreshes, blocks stale cached output immediately, closes cached bitmaps, and reports relayout failures. `setCachedPagesUsable`, `updatePageCount`, and `reportError` are host functions:
+
+```ts
+let fontRefresh = Promise.resolve();
+const fontCompletion = () => {
+  if (rtf.needsRelayout) setCachedPagesUsable(false);
+  fontRefresh = fontRefresh
+    .then(async () => {
+      if (rtf.destroyed || !rtf.needsRelayout) return;
+      await rtf.relayout();
+      for (const bitmap of renderedPages.values()) bitmap.close();
+      renderedPages.clear();
+      updatePageCount(rtf.pageCount);
+      setCachedPagesUsable(true);
+    })
+    .catch((error) => reportError(error));
+};
+
+document.fonts.addEventListener('loadingdone', fontCompletion);
+// Later, before destroying the surrounding view:
+document.fonts.removeEventListener('loadingdone', fontCompletion);
+```
+
+Backing pixels are `ceil(points × ppi / 72 × scale × pixelRatio)` on each axis, except values within four relative machine epsilons of a positive integer are treated as that integer to avoid floating-point overshoot. Genuine fractional extents still round upward: a 6 × 8 inch page at 150 PPI is exactly 900 × 1200 pixels. Page dimensions and output transform values must be positive and finite. The defaults are `ppi: 96`, `scale: 1`, and `pixelRatio: 1`. These paint settings do not change line breaks or page count. Canvas CSS size belongs to the caller.
 
 Different canvas targets may render concurrently. Concurrent renders on the same target reject. Cancellation or failure can leave a caller canvas partially painted; a subsequent render replaces it. `destroy()` cancels pending work and frees engine-owned resources while leaving caller canvases, caller font faces, and previously returned bitmaps alone.
 

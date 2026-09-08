@@ -5,6 +5,19 @@ fn model(input: &[u8]) -> rtf_parser::DocumentModel {
     parse(input).expect("fixture should parse")
 }
 
+fn codepage_model(codepage: i32, hex: &str) -> rtf_parser::DocumentModel {
+    let (pairs, remainder) = hex.as_bytes().as_chunks::<2>();
+    assert!(remainder.is_empty());
+    let mut escaped = String::with_capacity(hex.len() * 2);
+    for pair in pairs {
+        assert!(pair.iter().all(u8::is_ascii_hexdigit));
+        escaped.push_str("\\'");
+        escaped.push(char::from(pair[0]));
+        escaped.push(char::from(pair[1]));
+    }
+    model(format!("{{\\rtf1\\ansi\\ansicpg{codepage} {escaped}}}").as_bytes())
+}
+
 fn paragraphs(
     model: &rtf_parser::DocumentModel,
 ) -> impl Iterator<Item = (&[Run], &rtf_parser::ParagraphStyle)> {
@@ -121,6 +134,129 @@ fn decodes_document_and_font_codepages_with_dbcs_buffering() {
 
     let override_page = model(br"{\rtf1\ansi{\fonttbl{\f0\fcharset128\cpg1251 Test;}}\f0\'cf\par}");
     assert_eq!(all_text(&override_page), "П");
+}
+
+#[test]
+fn decodes_legacy_and_unicode_codepage_fixtures() {
+    let cases = [
+        (28592, "a3f364bc", "Łódź"),
+        (20866, "f0d2c9d7c5d4", "Привет"),
+        (1256, "e3d1cdc8c7", "مرحبا"),
+        (1255, "f9ece5ed", "שלום"),
+        (874, "e4b7c2", "ไทย"),
+        (65001, "e4b8ade69687f09f9880", "中文😀"),
+        (932, "93fa967b8cea", "日本語"),
+        (51932, "c6fccbdcb8ec", "日本語"),
+        (936, "d6d0cec4", "中文"),
+        (54936, "d6d0cec4953282369439fc36", "中文𠀀😀"),
+        (949, "c7d1b1b9beee", "한국어"),
+        (950, "c163c5e9a4a4a4e5", "繁體中文"),
+        (10000, "6361668e", "café"),
+        (1200, "2d4e87653dd800de", "中文😀"),
+        (1201, "4e2d6587d83dde00", "中文😀"),
+    ];
+
+    for (codepage, hex, expected) in cases {
+        let document = codepage_model(codepage, hex);
+        assert_eq!(all_text(&document), expected, "codepage {codepage}");
+        assert!(
+            document
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "unsupported-codepage"),
+            "codepage {codepage} should be supported"
+        );
+    }
+}
+
+#[test]
+fn decodes_additional_compatibility_codepage_aliases() {
+    let cases = [
+        (10007, "8ff0e8e2e5f2", "Привет"),
+        (21866, "b7a7b4a4b6a6bdad", "ЇїЄєІіҐґ"),
+        (28593, "a1b1", "Ħħ"),
+        (28594, "c0e0", "Āā"),
+        (28595, "bfe0d8d2d5e2", "Привет"),
+        (28596, "e5d1cdc8c7", "مرحبا"),
+        (28597, "c5ebebdce4e1", "Ελλάδα"),
+        (28598, "f9ece5ed", "שלום"),
+        (28600, "c0e0", "Āā"),
+        (28603, "c2e2", "Āā"),
+        (28604, "d0f0", "Ŵŵ"),
+        (28605, "a4", "€"),
+        (28606, "aaba", "Șș"),
+        (38598, "f9ece5ed", "שלום"),
+        (51949, "c7d1b1b9beee", "한국어"),
+    ];
+
+    for (codepage, hex, expected) in cases {
+        let document = codepage_model(codepage, hex);
+        assert_eq!(all_text(&document), expected, "codepage {codepage}");
+        assert!(
+            document
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "unsupported-codepage"),
+            "codepage {codepage} should be supported"
+        );
+    }
+}
+
+#[test]
+fn utf16_decoding_does_not_take_the_ascii_fast_path() {
+    for (codepage, hex, expected) in [
+        (1200, "4100", "A"),
+        (1201, "0041", "A"),
+        (1200, "2d4e", "中"),
+    ] {
+        let document = codepage_model(codepage, hex);
+        assert_eq!(all_text(&document), expected, "codepage {codepage}");
+    }
+}
+
+#[test]
+fn truncated_multibyte_sequences_are_replaced_and_diagnosed() {
+    for (codepage, hex, expected) in [
+        (1200, "41", "�"),
+        (1201, "00", "�"),
+        (1200, "3dd84100", "�A"),
+        (51932, "c6", "�"),
+        (54936, "81", "�"),
+    ] {
+        let document = codepage_model(codepage, hex);
+        assert_eq!(all_text(&document), expected, "codepage {codepage}");
+        assert!(
+            document
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "text-decoding-error"),
+            "codepage {codepage} should diagnose a truncated sequence"
+        );
+        assert!(
+            document
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "unsupported-codepage"),
+            "codepage {codepage} should remain recognized"
+        );
+    }
+}
+
+#[test]
+fn font_codepage_override_applies_to_utf16_font_names_and_runs() {
+    let document = model(
+        br"{\rtf1\ansi\ansicpg1252{\fonttbl{\f0\fcharset0\cpg1200 \'54\'00\'65\'00\'73\'00\'74\'00;}}\f0\'41\'00\par}",
+    );
+
+    assert_eq!(document.fonts[0].name, "Test");
+    assert_eq!(document.fonts[0].codepage, Some(1200));
+    assert_eq!(all_text(&document), "A");
+    assert!(
+        document
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "unsupported-codepage")
+    );
 }
 
 #[test]

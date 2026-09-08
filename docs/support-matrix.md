@@ -10,7 +10,7 @@ This matrix describes the 1.x rendering baseline. The major version establishes 
 | Binary payload boundaries | pp. 7–8, 14, 150 | Verified | Braces/slashes remain opaque; truncated and negative lengths reject |
 | Ignorable unknown destinations | pp. 9–10 | Verified | Whole subtree skipped, including nested known destinations; loss diagnosed |
 | Unicode u/uc, signed UTF-16 and upr/ud | pp. 14–16 | Verified subset | Scope, control/binary fallback, surrogate pairs, Unicode alternate branch |
-| ANSI/codepage/font charset | pp. 12–14, 17–20 | Partial | Windows-125x, Shift-JIS, GBK, Big5, Korean and selected other encoding_rs mappings; raw/escaped Chinese and font overrides tested; unsupported mappings diagnose fallback |
+| ANSI/codepage/font charset | pp. 12–14, 17–20 | Partial | Windows-125x, Shift-JIS/EUC-JP, GBK/GB18030, Big5, EUC-KR, Mac Roman/Cyrillic, KOI8-R/U, ISO-8859 aliases and UTF-8/16LE/16BE via encoding_rs; exact-byte fixtures, malformed sequences and font cpg overrides tested. Extra numeric aliases are compatibility coverage, not a claim of normative RTF requirements; unavailable mappings still diagnose fallback |
 | Font table | pp. 17–20 | Partial | IDs, names, charsets/codepages; no embedded-font registration or full associated-script font slots |
 | Color table | pp. 20–22 | Verified subset | RGB, automatic colors, text/highlight lookup |
 | Direct character styles and plain | Character Text section | Verified subset | Font/size, bold, italic, underline, strike, color, highlight, hidden text; baseline shifts implemented; complex underline/symbol-font rules omitted |
@@ -19,7 +19,8 @@ This matrix describes the 1.x rendering baseline. The major version establishes 
 | Physical paper/margins and explicit pages | p. 49 | Verified subset | Point geometry; explicit blank pages; landscape default-paper handling; section overrides diagnosed |
 | Automatic pagination | Paragraph/Page Information | Verified subset | Exact-line fixture matches independent 15+9 reference; no widow/orphan or keep-with-next algorithm yet |
 | English and common Chinese | Unicode/font sections | Partial | Exact decoded text and fixed-font browser images checked; complete bidi, dictionary breaking and East Asian typography unverified |
-| Canvas and ImageBitmap engine | Browser API | Verified | Geometry independent of PPI/scale/DPR; true bitmap dimensions and caller disposal |
+| Canvas and ImageBitmap engine | Browser API | Verified | Geometry independent of PPI/scale/DPR; integral 150-PPI dimensions, fractional rounding, output limits and caller disposal |
+| Font completion and explicit relayout | Browser API | Verified subset | Empty/known-unrelated completions ignored; relevant family changes invalidate geometry, require explicit relayout and increment layoutRevision. Hosts own cache refresh; eventless system-font changes require explicit relayout |
 | Worker/cancellation/destruction | Browser API | Verified subset | Worker termination, pre-abort, owned/borrowed viewer, canvas contention and late-resource cleanup tests |
 | Local-file viewer | Application | Verified | Upload, page navigation, zoom and downloaded PNG |
 | PNG/JPEG pictures | pp. 148–152 | Partial | Inline hex/binary payload, authored goal/scale, bounded decode and retained rectangles; crop/float/shape properties diagnosed |

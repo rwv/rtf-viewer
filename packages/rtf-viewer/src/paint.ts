@@ -1,12 +1,21 @@
 import type { PageLayout, RenderOptions } from './types.js';
 import { checkAbort, nextTask } from './lifecycle.js';
 export type CanvasTarget = HTMLCanvasElement | OffscreenCanvas;
+function ceilPixels(value: number): number {
+  const nearest = Math.round(value);
+  // The four scale operations can overshoot an integer by a few ULPs.
+  // Keep real fractional extents and never round a positive extent to zero.
+  return nearest > 0 && Math.abs(value - nearest) <= Number.EPSILON * Math.abs(value) * 4
+    ? nearest : Math.ceil(value);
+}
 export function pixelSize(page: { width: number; height: number }, options: RenderOptions = {}) {
   const ppi = options.ppi ?? 96, scale = options.scale ?? 1, ratio = options.pixelRatio ?? 1;
   if (![ppi, scale, ratio].every((v) => Number.isFinite(v) && v > 0)) throw new RangeError('PPI, scale and pixelRatio must be positive finite numbers.');
+  if (![page.width, page.height].every((v) => Number.isFinite(v) && v > 0)) throw new RangeError('Page dimensions must be positive finite numbers.');
   const factor = ppi / 72 * scale * ratio;
-  const width = Math.ceil(page.width * factor), height = Math.ceil(page.height * factor);
-  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width > 32767 || height > 32767 || width * height > 32_000_000) throw new RangeError('Output canvas exceeds 32 million pixels or the dimension limit.');
+  if (!Number.isFinite(factor) || factor <= 0) throw new RangeError('Output scale exceeds the numeric range.');
+  const width = ceilPixels(page.width * factor), height = ceilPixels(page.height * factor);
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || width > 32767 || height > 32767 || width * height > 32_000_000) throw new RangeError('Output canvas exceeds 32 million pixels or the dimension limit.');
   return { width, height, factor };
 }
 /** Paint is intentionally measurement-free: every line and image rectangle already exists. */

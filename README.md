@@ -2,7 +2,7 @@
 
 A browser-only RTF document engine: original bytes → Rust/WASM parser → paginated layout → Canvas or ImageBitmap. Use the engine in your application or add the lightweight viewer. No framework, server conversion, or automatic font downloads are required.
 
-The 1.x release supports Unicode and common Windows/East Asian codepages, direct text formatting, paragraphs, real paper sizes, automatic pagination, and inline PNG/JPEG. Tables and lists currently have text fallbacks; headers, footers, stylesheet inheritance, and WMF/EMF rendering remain incomplete. Check the [support matrix](https://github.com/rwv/rtf-viewer/blob/main/docs/support-matrix.md) for your document corpus.
+The 1.x release supports Unicode and common Windows/East Asian codepages, direct text formatting, paragraphs, real paper sizes, automatic pagination, and inline PNG/JPEG. The current source additionally fixes ISO-8859, EUC-JP, GB18030 and UTF-16 compatibility decoding; see [verification](https://github.com/rwv/rtf-viewer/blob/main/docs/verification.md) for release status. Tables and lists currently have text fallbacks; headers, footers, stylesheet inheritance, and WMF/EMF rendering remain incomplete. Check the [support matrix](https://github.com/rwv/rtf-viewer/blob/main/docs/support-matrix.md) for your document corpus.
 
 ## Install
 
@@ -35,7 +35,7 @@ try {
 
 `load()` accepts `Blob`, `File`, `ArrayBuffer`, or `Uint8Array`. For an image pipeline, use `await rtf.renderPageToBitmap(index, { ppi: 300 })` and close each returned bitmap with `bitmap.close()` when finished. Layout uses points; PPI, scale, and pixel ratio change output pixels without changing line breaks or page count.
 
-An `AbortSignal` cancels loading or rendering. Destroying a document releases its resources and is safe to repeat. Returned bitmaps and supplied canvases belong to the caller. Prepared fonts must be available before layout; font changes require an explicit `relayout()`. See the [API reference](https://github.com/rwv/rtf-viewer/blob/main/docs/api.md) for font mapping, cancellation, concurrent rendering, viewer ownership, and asset URL overrides.
+An `AbortSignal` cancels loading or rendering. Destroying a document releases its resources and is safe to repeat. Returned bitmaps and supplied canvases belong to the caller. Prepared fonts must be available before layout; relevant font changes require an explicit `relayout()` and refresh of the caller's page cache. Known unrelated font completions are ignored. See the [API reference](https://github.com/rwv/rtf-viewer/blob/main/docs/api.md) for font mapping, cancellation, concurrent rendering, viewer ownership, and asset URL overrides.
 
 ## Public API and versioning
 
@@ -69,7 +69,7 @@ pnpm dev
 For an existing checkout, run `git submodule update --init --recursive`. The submodule is a source dependency only: do not install or build its workspace.
 
 ```sh
-pnpm exec playwright install chromium
+pnpm exec playwright install --with-deps chromium firefox webkit
 pnpm check
 ```
 

@@ -127,20 +127,87 @@ test('concurrent targets work; contention, destroy and borrowed ownership are de
   expect(result.count).toBe(1);
 });
 
-test('font changes invalidate geometry and explicit relayout refreshes it', async ({ page }) => {
-  const result = await page.evaluate(async () => {
+test('font completion filters empty and unrelated batches but invalidates a relevant family', async ({ page, browserName }) => {
+  const result = await page.evaluate(async (expectNativeCompletion) => {
     const { RtfDocument } = (window as any).__rtfTest;
-    const doc = await RtfDocument.load(new TextEncoder().encode('{\\rtf1 Font revision\\par}'), { fonts: {} });
+    const doc = await RtfDocument.load(
+      new TextEncoder().encode(String.raw`{\rtf1{\fonttbl{\f0\fnil Lifecycle Source;}{\f1\fnil Rtf Lifecycle Unrelated;}}\f0 WWWWWWiiiiii font revision\par}`),
+      { fonts: { 'Lifecycle Source': 'Rtf Lifecycle Relevant' } },
+    );
     const before = doc.layoutRevision;
+    const beforeWidth = doc.getPageLayout(0).lines[0].width;
     document.fonts.dispatchEvent(new Event('loadingdone'));
+    const emptyIgnored = !doc.needsRelayout;
+
+    const loadFace = async (face: FontFace, font: string) => {
+      const familyKey = (value: string) => value.replace(/^["']|["']$/g, '').toLowerCase();
+      const expectedFamily = familyKey(face.family);
+      let nativeCompletion = false;
+      let stopWaiting!: () => void;
+      const completion = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error(`No loadingdone event for ${face.family}.`)), 5000);
+        const done = (event: Event) => {
+          const faces = 'fontfaces' in event ? (event as FontFaceSetLoadEvent).fontfaces : [];
+          if (!faces.some((loaded) => familyKey(loaded.family) === expectedFamily)) return;
+          nativeCompletion = true;
+          stopWaiting();
+          resolve();
+        };
+        stopWaiting = () => {
+          clearTimeout(timeout);
+          document.fonts.removeEventListener('loadingdone', done);
+        };
+        document.fonts.addEventListener('loadingdone', done);
+      });
+      document.fonts.add(face);
+      const loading = document.fonts.load(font, 'Font metrics');
+      if (expectNativeCompletion) await Promise.all([loading, completion]);
+      else { await loading; stopWaiting(); }
+      if (!nativeCompletion) {
+        // WebKit can complete a script-initiated load without loadingdone. Use
+        // the native face in an equivalent event shape to test filtering there.
+        const event = new Event('loadingdone');
+        Object.defineProperty(event, 'fontfaces', { value: [face] });
+        document.fonts.dispatchEvent(event);
+      }
+      return nativeCompletion;
+    };
+
+    const unrelated = new FontFace(
+      'Rtf Lifecycle Unrelated',
+      'url("/fonts/LiberationSans-Regular.ttf?font-lifecycle=unrelated")',
+    );
+    const unrelatedNative = await loadFace(unrelated, '12px "Rtf Lifecycle Unrelated"');
+    const unrelatedIgnored = !doc.needsRelayout;
+    document.fonts.delete(unrelated);
+
+    const quotedUnrelated = new Event('loadingdone');
+    Object.defineProperty(quotedUnrelated, 'fontfaces', { value: [{ family: '"Rtf Lifecycle Quoted Unrelated"' }] });
+    document.fonts.dispatchEvent(quotedUnrelated);
+    const quotedUnrelatedIgnored = !doc.needsRelayout;
+
+    const relevant = new FontFace(
+      'Rtf Lifecycle Relevant',
+      'url("/fonts/LiberationSans-Regular.ttf?font-lifecycle=relevant")',
+    );
+    const relevantNative = await loadFace(relevant, '12px "Rtf Lifecycle Relevant"');
     const stale = doc.needsRelayout;
     const blocked = await doc.renderPage(document.createElement('canvas'), 0).then(() => 'resolved', (e: Error) => e.message);
     await doc.relayout();
     await doc.renderPage(document.createElement('canvas'), 0);
-    const result = { before, after: doc.layoutRevision, stale, fresh: !doc.needsRelayout, blocked };
+    const afterWidth = doc.getPageLayout(0).lines[0].width;
+    const fresh = !doc.needsRelayout;
+    const malformed = new Event('loadingdone');
+    Object.defineProperty(malformed, 'fontfaces', { value: [null] });
+    document.fonts.dispatchEvent(malformed);
+    const malformedConservative = doc.needsRelayout;
+    const result = { before, after: doc.layoutRevision, beforeWidth, afterWidth, emptyIgnored, unrelatedIgnored, quotedUnrelatedIgnored, unrelatedNative, relevantNative, stale, fresh, malformedConservative, blocked };
+    document.fonts.delete(relevant);
     doc.destroy(); return result;
-  });
-  expect(result).toMatchObject({ before: 1, after: 2, stale: true, fresh: true });
+  }, browserName !== 'webkit');
+  expect(result).toMatchObject({ before: 1, after: 2, emptyIgnored: true, unrelatedIgnored: true, quotedUnrelatedIgnored: true, stale: true, fresh: true, malformedConservative: true });
+  if (browserName !== 'webkit') expect([result.unrelatedNative, result.relevantNative]).toEqual([true, true]);
+  expect(Math.abs(result.afterWidth - result.beforeWidth)).toBeGreaterThan(0.1);
   expect(result.blocked).toContain('Fonts changed');
 });
 
@@ -211,13 +278,22 @@ test('font changes during measurement cannot publish mixed geometry', async ({ p
     const { RtfDocument } = (window as any).__rtfTest;
     const proto = OffscreenCanvasRenderingContext2D.prototype;
     const original = proto.measureText;
+    const relevantFace = new FontFace('Rtf Race Font', 'local("serif")');
     let triggered = false;
     proto.measureText = function (text: string) {
-      if (!triggered) { triggered = true; document.fonts.dispatchEvent(new Event('loadingdone')); }
+      if (!triggered) {
+        triggered = true;
+        const event = new Event('loadingdone');
+        Object.defineProperty(event, 'fontfaces', { value: [relevantFace] });
+        document.fonts.dispatchEvent(event);
+      }
       return original.call(this, text);
     };
     try {
-      return await RtfDocument.load(new TextEncoder().encode('{\\rtf1 Font race\\par}'), { fonts: {} }).then((doc: any) => { doc.destroy(); return 'resolved'; }, (error: Error) => error.message);
+      return await RtfDocument.load(
+        new TextEncoder().encode(String.raw`{\rtf1{\fonttbl{\f0\fnil Race Source;}}\f0 Font race\par}`),
+        { fonts: { 'Race Source': 'Rtf Race Font' } },
+      ).then((doc: any) => { doc.destroy(); return 'resolved'; }, (error: Error) => error.message);
     } finally { proto.measureText = original; }
   });
   expect(result).toContain('Fonts changed during layout');

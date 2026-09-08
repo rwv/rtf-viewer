@@ -3,6 +3,10 @@ import type { LayoutServices, LoadOptions, PageSize, TextMetricsPt } from './typ
 import { abortable, checkAbort } from './lifecycle.js';
 import { sniffRasterDimensions } from './vendor/raster-dimensions.js';
 
+const GENERIC_FONT_FAMILIES = new Set(['serif', 'sans-serif', 'monospace', 'system-ui']);
+const sanitizeFontFamily = (name: string) => name.replace(/[\r\n\x00-\x1f]/g, '').slice(0, 200);
+const fontFamilyKey = (name: string) => sanitizeFontFamily(name).toLowerCase();
+
 export class BrowserResources implements LayoutServices {
   readonly diagnostics: Diagnostic[] = [];
   readonly images = new Map<string, ImageBitmap>();
@@ -11,9 +15,18 @@ export class BrowserResources implements LayoutServices {
   private readonly names: Map<number, string>;
   private readonly canvas = new OffscreenCanvas(1, 1);
   private readonly context: OffscreenCanvasRenderingContext2D;
+  private readonly usedFontFamilies = new Set<string>();
+  private readonly preparedFontFaces = new WeakSet<FontFace>();
   private closed = false;
   fontEpoch = 0;
-  private readonly fontListener = () => { this.fontEpoch++; };
+  private readonly fontListener = (event: Event) => {
+    const faces = 'fontfaces' in event
+      ? (event as FontFaceSetLoadEvent).fontfaces
+      : [];
+    if (faces.length > 0 && faces.some((face) => !this.preparedFontFaces.has(face) && this.fontFaceMayAffectLayout(face))) {
+      this.fontEpoch++;
+    }
+  };
   constructor(private readonly model: DocumentModel, private readonly options: LoadOptions) {
     const context = this.canvas.getContext('2d');
     if (!context) throw new Error('Canvas 2D is unavailable.');
@@ -27,12 +40,43 @@ export class BrowserResources implements LayoutServices {
         : undefined;
       return [font.id, typeof mapped === 'string' ? mapped : font.name];
     }));
+    for (const block of model.blocks) {
+      if (block.kind !== 'paragraph') continue;
+      this.rememberFontFamily(block.markStyle);
+      for (const run of block.runs) {
+        if (run.kind === 'text' && !run.style.hidden && run.text.length > 0) this.rememberFontFamily(run.style);
+      }
+    }
     document.fonts.addEventListener('loadingdone', this.fontListener);
+  }
+  private family(style: TextStyle): string {
+    return this.names.get(style.fontId) || this.options.fallbackFont || 'serif';
+  }
+  private rememberFontFamily(style: TextStyle): void {
+    this.usedFontFamilies.add(fontFamilyKey(this.family(style)));
+    if (this.options.fallbackFont) this.usedFontFamilies.add(fontFamilyKey(this.options.fallbackFont));
+    this.usedFontFamilies.add('serif');
+  }
+  private fontFaceMayAffectLayout(face: FontFace): boolean {
+    let family = (face as FontFace | null)?.family;
+    if (typeof family !== 'string' || family.length === 0) return true;
+    if (family.includes('\\')) return true;
+    const openingQuote = family[0] === '"' || family[0] === "'" ? family[0] : undefined;
+    const closingQuote = family.at(-1) === '"' || family.at(-1) === "'" ? family.at(-1) : undefined;
+    if (openingQuote || closingQuote) {
+      if (!openingQuote || openingQuote !== closingQuote) return true;
+      family = family.slice(1, -1);
+    }
+    // Remaining quote characters require full CSS string parsing, so an event
+    // carrying them is relevant unless the host can classify it itself.
+    if (/["']/.test(family)) return true;
+    family = fontFamilyKey(family);
+    return family.length === 0 || this.usedFontFamilies.has(family);
   }
   font(style: TextStyle): string {
     if (!Number.isFinite(style.fontSize) || style.fontSize <= 0 || style.fontSize > 2048 || !Number.isFinite(style.baseline) || Math.abs(style.baseline) > 2048) throw new RangeError('Text size or baseline exceeds the supported physical range.');
-    const family = this.names.get(style.fontId) || this.options.fallbackFont || 'serif';
-    const quoted = (name: string) => ['serif', 'sans-serif', 'monospace', 'system-ui'].includes(name) ? name : JSON.stringify(name.replace(/[\r\n\x00-\x1f]/g, '').slice(0, 200));
+    const family = this.family(style);
+    const quoted = (name: string) => GENERIC_FONT_FAMILIES.has(name) ? name : JSON.stringify(sanitizeFontFamily(name));
     const fallback = this.options.fallbackFont ? `${quoted(this.options.fallbackFont)}, ` : '';
     return `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSize}px ${quoted(family)}, ${fallback}serif`;
   }
@@ -60,13 +104,17 @@ export class BrowserResources implements LayoutServices {
       if (block.kind !== 'paragraph') continue;
       fonts.set(this.font(block.markStyle), 'Mg');
       for (const run of block.runs) {
-        if (run.kind !== 'text') continue;
+        if (run.kind !== 'text' || run.style.hidden || run.text.length === 0) continue;
         const font = this.font(run.style);
         const sample = (fonts.get(font) ?? '') + run.text.slice(0, 128);
         fonts.set(font, sample.slice(0, 512));
       }
     }
-    await abortable(Promise.all(Array.from(fonts, ([font, sample]) => document.fonts.load(font, sample))), signal);
+    const faces = await abortable(Promise.all(Array.from(fonts, ([font, sample]) => document.fonts.load(font, sample))), signal);
+    // Some browsers deliver loadingdone after load()/ready have resolved. These
+    // completed faces already contribute to the next layout; their late event
+    // must not invalidate it. New faces remain eligible for invalidation.
+    for (const batch of faces) for (const face of batch) this.preparedFontFaces.add(face);
     await abortable(document.fonts.ready, signal);
     checkAbort(signal);
     this.metrics.clear();

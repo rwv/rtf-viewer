@@ -24,6 +24,8 @@ The long-term target is a specification-backed browser viewer with steadily impr
 
 The repository uses Release Please for release preparation, environment-scoped GitHub credentials for the release bot, and npm OIDC for publication. A pinned upstream source import replaces the initial image-helper copy; Dependabot proposes submodule and dependency updates for review. Build and browser/package checks run before merging those updates. The [release procedure](releasing.md) and [reuse evaluation](reuse-evaluation.md) describe the boundaries.
 
+The issue #5 maintenance slice expands compatibility codepages, filters irrelevant font completions while preserving explicit relayout, and corrects integral raster sizes at 150 PPI. The production browser gate now runs in Chromium, Firefox and WebKit. This closes specific M1/M2 compatibility gaps without extending the table, list or complex-script fidelity claims. See [verification](verification.md) for the source/package distinction and measured results.
+
 ## M3 boundaries that must be explicit
 
 Merged cells, nested tables, split rows and rows taller than a page are distinct features. Basic tables are incomplete until normal cell content and cross-page behavior work. Lists must model numbering semantics; displaying cached list text is only partial support. Inline PNG/JPEG does not imply WMF/EMF or arbitrary DrawingML shapes. WMF/EMF evaluation must include rtf.js's separate renderers and licenses, including production import behavior and unsupported record visibility.
@@ -36,4 +38,4 @@ Editing, source-format saving and round-trip fidelity are outside the read-only 
 2. M3c: introduce real row/cell blocks, then fixed-width ordinary tables and measured cross-page fragments. Separate merge/oversize/nesting fixtures before extending the claim.
 3. Grow the producer corpus, prioritizing permission-cleared Word/TextEdit files and table/list/image cases. Keep current LibreOffice deltas recorded.
 4. Implement a bounded WMF/EMF adapter after auditing rtf.js's separate renderers and upstream GDI players for record diagnostics. Public imports and bundle costs are already measured; raster placeholders must remain visible until a decoder is validated.
-5. Add Firefox/WebKit and additional npm-consumer bundlers once the Chromium/Vite baseline stays stable.
+5. Expand the installed-package gate to additional bundlers and platforms; retain the Chromium/Firefox/WebKit production checks as the browser baseline.

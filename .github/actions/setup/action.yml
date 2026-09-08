@@ -24,4 +24,4 @@ runs:
     - shell: bash
       run: pnpm install --frozen-lockfile
     - shell: bash
-      run: pnpm exec playwright install --with-deps chromium
+      run: pnpm exec playwright install --with-deps chromium firefox webkit
