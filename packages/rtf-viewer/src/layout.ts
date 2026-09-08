@@ -1,15 +1,27 @@
-import type { Block, Diagnostic, DocumentModel, TextStyle } from './generated/model.js';
+import type { Block, Diagnostic, DocumentModel, TableCell, TextStyle } from './generated/model.js';
 import type {
   DocumentLayout,
-  Fragment,
+  ImageFragment,
   LayoutOptions,
   LayoutServices,
-  LineLayout,
   PageLayout,
+  RuleFragment,
+  TextFragment,
 } from './types.js';
 import { checkAbort, nextTask } from './lifecycle.js';
 
 type Paragraph = Extract<Block, { kind: 'paragraph' }>;
+type Row = Extract<Block, { kind: 'row' }>;
+type Mutable<T> = { -readonly [Key in keyof T]: T[Key] };
+type DraftFragment = Mutable<TextFragment> | Mutable<ImageFragment>;
+interface DraftLine {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  paragraphIndex: number;
+  fragments: DraftFragment[];
+}
 type Part = { text: string; style: TextStyle };
 type Token =
   | { kind: 'text' | 'space'; parts: Part[] }
@@ -23,6 +35,9 @@ const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 const cjk = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 const opening = /[（［｛〈《「『【〔〖〘〚“‘([{]$/u;
 const closing = /^[、。，．？！：；）］｝〉》」』】〕〗〙〛”’!?,.;:)\]}]/u;
+/** Smallest usable line width. Indents that overrun their container clamp to it. */
+const MIN_COLUMN_WIDTH = 1;
+const EPSILON = 0.001;
 
 async function tokenize(paragraph: Paragraph, signal?: AbortSignal): Promise<Token[]> {
   const result: Token[] = [];
@@ -126,6 +141,285 @@ function splitText(
   ];
 }
 
+interface FlowContext {
+  model: DocumentModel;
+  services: LayoutServices;
+  signal?: AbortSignal;
+  /** Height of the page content area, used only for oversized-content notices. */
+  contentHeight: number;
+  warn(code: string, message: string): void;
+  tick(): Promise<void>;
+}
+
+function colour(model: DocumentModel, index: number | null): string {
+  return (index === null ? null : model.colors[index]) ?? '#000000';
+}
+
+/**
+ * Break one paragraph into stacked lines inside a column. Line breaking depends only on the
+ * column width, so the result can be placed at any vertical position, in a page or in a cell.
+ */
+async function layoutParagraph(
+  block: Paragraph,
+  blockIndex: number,
+  columnLeft: number,
+  columnWidth: number,
+  ctx: FlowContext,
+): Promise<DraftLine[]> {
+  const style = block.style;
+  const paragraphLeft = columnLeft + style.leftIndent;
+  let paragraphWidth = columnWidth - style.leftIndent - style.rightIndent;
+  if (
+    ![
+      paragraphLeft,
+      paragraphWidth,
+      style.firstLineIndent,
+      style.spaceBefore,
+      style.spaceAfter,
+    ].every(Number.isFinite)
+  )
+    throw new RangeError('Paragraph geometry is not a finite number.');
+  if (paragraphWidth - Math.max(0, style.firstLineIndent) < MIN_COLUMN_WIDTH) {
+    ctx.warn(
+      'narrow-column',
+      'Paragraph indents leave no usable line width; the line box was clamped to a minimum.',
+    );
+    paragraphWidth = MIN_COLUMN_WIDTH + Math.max(0, style.firstLineIndent);
+  }
+  if (style.lineSpacing.kind !== 'auto' && !(style.lineSpacing.value > 0))
+    throw new RangeError('Invalid line spacing.');
+
+  const lines: DraftLine[] = [];
+  const tokens = await tokenize(block, ctx.signal);
+  const mark = ctx.services.measure('Mg', block.markStyle);
+  let firstLine = true;
+  let parts: Measured[] = [];
+  let width = 0;
+  let forcedEnding = false;
+  let y = 0;
+  const lineX = () => paragraphLeft + (firstLine ? style.firstLineIndent : 0);
+  const available = () => paragraphWidth - (firstLine ? style.firstLineIndent : 0);
+  const emit = (last: boolean, forced = false) => {
+    // Spaces consumed at wrap boundaries have no ink and do not affect alignment.
+    while (
+      parts.at(-1)?.kind === 'text' &&
+      /^ +$/.test((parts.at(-1) as Extract<Measured, { kind: 'text' }>).part.text)
+    ) {
+      width -= parts.pop()!.width;
+    }
+    let ascent = mark.ascent,
+      descent = mark.descent;
+    for (const part of parts) {
+      const shift = part.kind === 'text' ? part.part.style.baseline : 0;
+      ascent = Math.max(ascent, part.ascent + shift);
+      descent = Math.max(descent, part.descent - shift);
+    }
+    const natural = Math.max(1, ascent + descent);
+    let height = natural;
+    const spacing = style.lineSpacing;
+    if (spacing.kind === 'exact') height = Math.max(0.1, spacing.value);
+    else if (spacing.kind === 'atLeast') height = Math.max(natural, spacing.value);
+    else if (spacing.kind === 'multiple') height = Math.max(0.1, natural * spacing.value);
+    if (height > ctx.contentHeight)
+      ctx.warn(
+        'oversized-line',
+        'A line is taller than the page content area; it is placed once and may overflow.',
+      );
+    if (width > available() + EPSILON)
+      ctx.warn(
+        'oversized-inline',
+        'An indivisible text cluster or inline image is wider than the paragraph.',
+      );
+    let x = lineX();
+    const slack = Math.max(0, available() - width);
+    if (style.align === 'center') x += slack / 2;
+    if (style.align === 'right') x += slack;
+    const spaces = parts.filter((part) => part.kind === 'text' && /^ +$/.test(part.part.text));
+    const extraSpace =
+      style.align === 'justify' && !last && !forced && spaces.length > 0
+        ? slack / spaces.length
+        : 0;
+    const baseline = y + ascent + (height - natural) / 2;
+    const fragments: DraftFragment[] = [];
+    const startX = x;
+    for (const part of parts) {
+      if (part.kind === 'image') {
+        fragments.push({
+          kind: 'image',
+          imageId: part.id,
+          x,
+          y: baseline - part.ascent,
+          width: part.width,
+          height: part.ascent,
+        });
+      } else {
+        const textStyle = part.part.style;
+        const spaceExtra = /^ +$/.test(part.part.text) ? extraSpace : 0;
+        fragments.push({
+          kind: 'text',
+          text: part.part.text,
+          x,
+          y,
+          width: part.width + spaceExtra,
+          height,
+          baseline: baseline - textStyle.baseline,
+          font: ctx.services.font(textStyle),
+          fontSize: textStyle.fontSize,
+          color: colour(ctx.model, textStyle.color),
+          highlight:
+            textStyle.highlight === null ? null : (ctx.model.colors[textStyle.highlight] ?? null),
+          underline: textStyle.underline,
+          strike: textStyle.strike,
+        });
+        x += spaceExtra;
+      }
+      x += part.width;
+    }
+    lines.push({
+      x: startX,
+      y,
+      width: x - startX,
+      height,
+      paragraphIndex: blockIndex,
+      fragments,
+    });
+    y += height;
+    firstLine = false;
+    parts = [];
+    width = 0;
+  };
+  for (let index = 0; index < tokens.length; index++) {
+    if (lines.length > 0 && lines.length % 64 === 0) await ctx.tick();
+    let token = tokens[index];
+    if (token.kind === 'break') {
+      emit(false, true);
+      forcedEnding = true;
+      continue;
+    }
+    forcedEnding = false;
+    if (token.kind === 'tab') {
+      const tab = ctx.model.defaultTab > 0 ? ctx.model.defaultTab : 36;
+      const tabAdvance = () => {
+        const position = lineX() - columnLeft + width;
+        return tab - (((position % tab) + tab) % tab);
+      };
+      let advance = tabAdvance();
+      if (width + advance > available() && parts.length > 0) {
+        emit(false);
+        advance = tabAdvance();
+      }
+      parts.push({
+        kind: 'text',
+        part: { text: ' ', style: block.markStyle },
+        width: advance,
+        ascent: mark.ascent,
+        descent: mark.descent,
+      });
+      width += advance;
+      continue;
+    }
+    let additions = measured(token, ctx.services);
+    let additionWidth = totalWidth(additions);
+    if (width + additionWidth > available() + EPSILON && parts.length > 0) {
+      emit(false);
+      if (token.kind === 'space') continue;
+    }
+    if (additionWidth > available() && (token.kind === 'text' || token.kind === 'space')) {
+      const [head, tail] = splitText(token, available(), ctx.services);
+      additions = measured(head, ctx.services);
+      additionWidth = totalWidth(additions);
+      if (tail) {
+        tokens[index] = tail;
+        index--;
+      }
+    }
+    parts.push(...additions);
+    width += additionWidth;
+  }
+  if (parts.length > 0 || firstLine || forcedEnding) emit(true);
+  return lines;
+}
+
+function shift(line: DraftLine, delta: number): DraftLine {
+  line.y += delta;
+  for (const fragment of line.fragments) {
+    fragment.y += delta;
+    if (fragment.kind === 'text') fragment.baseline += delta;
+  }
+  return line;
+}
+
+/** Stack a cell's paragraphs into a column without paginating; the row places the result. */
+async function layoutColumn(
+  blocks: readonly Block[],
+  blockIndex: number,
+  columnLeft: number,
+  columnWidth: number,
+  ctx: FlowContext,
+): Promise<{ lines: DraftLine[]; height: number }> {
+  const lines: DraftLine[] = [];
+  let y = 0;
+  for (const block of blocks) {
+    if (block.kind !== 'paragraph') {
+      // Schema version 2 never nests rows or breaks inside a cell.
+      ctx.warn('unsupported-cell-content', 'Only paragraphs are laid out inside a table cell.');
+      continue;
+    }
+    await ctx.tick();
+    y += Math.max(0, block.style.spaceBefore);
+    for (const line of await layoutParagraph(block, blockIndex, columnLeft, columnWidth, ctx)) {
+      lines.push(shift(line, y));
+    }
+    y = lines.at(-1) ? lines.at(-1)!.y + lines.at(-1)!.height : y;
+    y += Math.max(0, block.style.spaceAfter);
+  }
+  return { lines, height: y };
+}
+
+interface CellPlan {
+  left: number;
+  right: number;
+  padding: TableCell['padding'];
+  borders: TableCell['borders'];
+  lines: DraftLine[];
+  /** Line bottoms measured from the row top, used to choose a page break inside the row. */
+  height: number;
+}
+
+function border(
+  rules: RuleFragment[],
+  model: DocumentModel,
+  side: TableCell['borders']['top'],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  if (!side || !(side.width > 0)) return;
+  // Strokes are centred on the boundary so that the shared edge of two cells overprints
+  // instead of drawing twice its width.
+  const half = side.width / 2;
+  rules.push(
+    width === 0
+      ? {
+          kind: 'rule',
+          x: x - half,
+          y,
+          width: side.width,
+          height,
+          color: colour(model, side.color),
+        }
+      : {
+          kind: 'rule',
+          x,
+          y: y - half,
+          width,
+          height: side.width,
+          color: colour(model, side.color),
+        },
+  );
+}
+
 export async function layoutDocument(
   model: DocumentModel,
   services: LayoutServices,
@@ -149,7 +443,13 @@ export async function layoutDocument(
   const maxPages = options.maxPages ?? 2000;
   if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 2000)
     throw new RangeError('Invalid page limit.');
-  const pages: { index: number; width: number; height: number; lines: LineLayout[] }[] = [];
+  const pages: {
+    index: number;
+    width: number;
+    height: number;
+    lines: DraftLine[];
+    decorations: RuleFragment[];
+  }[] = [];
   const diagnostics: Diagnostic[] = [];
   const reported = new Set<string>();
   const warn = (code: string, message: string) => {
@@ -163,21 +463,35 @@ export async function layoutDocument(
   const newPage = () => {
     if (pages.length >= maxPages)
       throw new RangeError('RTF page count exceeds the configured limit.');
-    page = { index: pages.length, width: p.width, height: p.height, lines: [] };
+    page = { index: pages.length, width: p.width, height: p.height, lines: [], decorations: [] };
     pages.push(page);
     y = p.marginTop;
   };
   newPage();
   const bottom = p.height - p.marginBottom;
-  let lineCount = 0;
-  for (let blockIndex = 0; blockIndex < model.blocks.length; blockIndex++) {
-    if (blockIndex % 32 === 0) {
+  const contentLeft = p.marginLeft;
+  const contentWidth = p.width - p.marginLeft - p.marginRight;
+  const ctx: FlowContext = {
+    model,
+    services,
+    signal: options.signal,
+    contentHeight: bottom - p.marginTop,
+    warn,
+    tick: async () => {
       await nextTask();
       checkAbort(options.signal);
-    }
+    },
+  };
+
+  for (let blockIndex = 0; blockIndex < model.blocks.length; blockIndex++) {
+    if (blockIndex % 32 === 0) await ctx.tick();
     const block = model.blocks[blockIndex];
     if (block.kind === 'pageBreak') {
       newPage();
+      continue;
+    }
+    if (block.kind === 'row') {
+      await layoutRow(block, blockIndex);
       continue;
     }
     if (
@@ -195,185 +509,156 @@ export async function layoutDocument(
       );
     const style = block.style;
     if (style.pageBreakBefore && (page!.lines.length > 0 || y > p.marginTop)) newPage();
-    const paragraphLeft = p.marginLeft + style.leftIndent;
-    const paragraphWidth =
-      p.width - p.marginLeft - p.marginRight - style.leftIndent - style.rightIndent;
-    if (
-      ![
-        paragraphLeft,
-        paragraphWidth,
-        style.firstLineIndent,
-        style.spaceBefore,
-        style.spaceAfter,
-        style.lineSpacing.kind === 'auto' ? 0 : style.lineSpacing.value,
-      ].every(Number.isFinite) ||
-      paragraphWidth <= 0 ||
-      paragraphWidth - style.firstLineIndent <= 0
-    ) {
-      throw new RangeError('Paragraph indents leave no usable line width.');
-    }
-    if (style.lineSpacing.kind !== 'auto' && style.lineSpacing.value <= 0)
-      throw new RangeError('Invalid line spacing.');
     let before = Math.max(0, style.spaceBefore);
     if (y + before >= bottom && page!.lines.length > 0) {
       newPage();
       before = 0;
     }
     y += before;
-    const tokens = await tokenize(block, options.signal);
-    const mark = services.measure('Mg', block.markStyle);
-    let firstLine = true;
-    let parts: Measured[] = [];
-    let width = 0;
-    let forcedEnding = false;
-    const lineX = () => paragraphLeft + (firstLine ? style.firstLineIndent : 0);
-    const available = () => paragraphWidth - (firstLine ? style.firstLineIndent : 0);
-    const emit = (last: boolean, forced = false) => {
-      // Spaces consumed at wrap boundaries have no ink and do not affect alignment.
-      while (
-        parts.at(-1)?.kind === 'text' &&
-        /^ +$/.test((parts.at(-1) as Extract<Measured, { kind: 'text' }>).part.text)
-      ) {
-        width -= parts.pop()!.width;
-      }
-      let ascent = mark.ascent,
-        descent = mark.descent;
-      for (const part of parts) {
-        const shift = part.kind === 'text' ? part.part.style.baseline : 0;
-        ascent = Math.max(ascent, part.ascent + shift);
-        descent = Math.max(descent, part.descent - shift);
-      }
-      const natural = Math.max(1, ascent + descent);
-      let height = natural;
-      const spacing = style.lineSpacing;
-      if (spacing.kind === 'exact') height = Math.max(0.1, spacing.value);
-      else if (spacing.kind === 'atLeast') height = Math.max(natural, spacing.value);
-      else if (spacing.kind === 'multiple') height = Math.max(0.1, natural * spacing.value);
-      if (y + height > bottom + 0.001 && page!.lines.length > 0) newPage();
-      if (height > bottom - p.marginTop)
-        warn(
-          'oversized-line',
-          'A line is taller than the page content area; it is placed once and may overflow.',
-        );
-      if (width > available() + 0.001)
-        warn(
-          'oversized-inline',
-          'An indivisible text cluster or inline image is wider than the paragraph.',
-        );
-      let x = lineX();
-      const slack = Math.max(0, available() - width);
-      if (style.align === 'center') x += slack / 2;
-      if (style.align === 'right') x += slack;
-      const spaces = parts.filter((part) => part.kind === 'text' && /^ +$/.test(part.part.text));
-      const extraSpace =
-        style.align === 'justify' && !last && !forced && spaces.length > 0
-          ? slack / spaces.length
-          : 0;
-      const baseline = y + ascent + (height - natural) / 2;
-      const fragments: Fragment[] = [];
-      const startX = x;
-      for (const part of parts) {
-        if (part.kind === 'image') {
-          fragments.push({
-            kind: 'image',
-            imageId: part.id,
-            x,
-            y: baseline - part.ascent,
-            width: part.width,
-            height: part.ascent,
-          });
-        } else {
-          const textStyle = part.part.style;
-          const spaceExtra = /^ +$/.test(part.part.text) ? extraSpace : 0;
-          fragments.push({
-            kind: 'text',
-            text: part.part.text,
-            x,
-            y,
-            width: part.width + spaceExtra,
-            height,
-            baseline: baseline - textStyle.baseline,
-            font: services.font(textStyle),
-            fontSize: textStyle.fontSize,
-            color: (textStyle.color === null ? null : model.colors[textStyle.color]) ?? '#000000',
-            highlight:
-              textStyle.highlight === null ? null : (model.colors[textStyle.highlight] ?? null),
-            underline: textStyle.underline,
-            strike: textStyle.strike,
-          });
-          x += spaceExtra;
-        }
-        x += part.width;
-      }
-      page!.lines.push({
-        x: startX,
-        y,
-        width: x - startX,
-        height,
-        paragraphIndex: blockIndex,
-        fragments,
-      });
-      y += height;
-      firstLine = false;
-      parts = [];
-      width = 0;
-      lineCount++;
-    };
-    for (let index = 0; index < tokens.length; index++) {
-      if (lineCount > 0 && lineCount % 64 === 0) {
-        await nextTask();
-        checkAbort(options.signal);
-      }
-      let token = tokens[index];
-      if (token.kind === 'break') {
-        emit(false, true);
-        forcedEnding = true;
-        continue;
-      }
-      forcedEnding = false;
-      if (token.kind === 'tab') {
-        const tab = model.defaultTab > 0 ? model.defaultTab : 36;
-        const tabAdvance = () => {
-          const position = lineX() - p.marginLeft + width;
-          return tab - (((position % tab) + tab) % tab);
-        };
-        let advance = tabAdvance();
-        if (width + advance > available() && parts.length > 0) {
-          emit(false);
-          advance = tabAdvance();
-        }
-        const tabStyle = block.markStyle;
-        parts.push({
-          kind: 'text',
-          part: { text: ' ', style: tabStyle },
-          width: advance,
-          ascent: mark.ascent,
-          descent: mark.descent,
-        });
-        width += advance;
-        continue;
-      }
-      let additions = measured(token, services);
-      let additionWidth = totalWidth(additions);
-      if (width + additionWidth > available() + 0.001 && parts.length > 0) {
-        emit(false);
-        if (token.kind === 'space') continue;
-      }
-      if (additionWidth > available() && (token.kind === 'text' || token.kind === 'space')) {
-        const [head, tail] = splitText(token, available(), services);
-        additions = measured(head, services);
-        additionWidth = totalWidth(additions);
-        if (tail) {
-          tokens[index] = tail;
-          index--;
-        }
-      }
-      parts.push(...additions);
-      width += additionWidth;
+    const lines = await layoutParagraph(block, blockIndex, contentLeft, contentWidth, ctx);
+    for (const line of lines) {
+      if (y + line.height > bottom + EPSILON && page!.lines.length > 0) newPage();
+      page!.lines.push(shift(line, y - line.y));
+      y += line.height;
     }
-    if (parts.length > 0 || firstLine || forcedEnding) emit(true);
     y += Math.max(0, style.spaceAfter);
   }
   checkAbort(options.signal);
   return { pages: pages as PageLayout[], diagnostics };
+
+  async function layoutRow(row: Row, blockIndex: number): Promise<void> {
+    if (row.cells.length === 0) return;
+    const shiftX = rowShift(row);
+    const plans: CellPlan[] = [];
+    let previous = row.left;
+    for (const cell of row.cells) {
+      if (!Number.isFinite(cell.right) || cell.right <= previous) {
+        warn(
+          'invalid-cell-boundary',
+          'A table cell boundary does not advance to the right; the cell was skipped.',
+        );
+        continue;
+      }
+      const left = contentLeft + shiftX + previous;
+      const right = contentLeft + shiftX + cell.right;
+      previous = cell.right;
+      const padding = {
+        left: Math.max(0, cell.padding.left),
+        right: Math.max(0, cell.padding.right),
+        top: Math.max(0, cell.padding.top),
+        bottom: Math.max(0, cell.padding.bottom),
+      };
+      let width = right - left - padding.left - padding.right;
+      if (width < MIN_COLUMN_WIDTH) {
+        warn(
+          'narrow-table-cell',
+          'Cell padding leaves no usable content width; the content box was clamped to a minimum.',
+        );
+        width = MIN_COLUMN_WIDTH;
+      }
+      const content = await layoutColumn(cell.blocks, blockIndex, left + padding.left, width, ctx);
+      plans.push({
+        left,
+        right,
+        padding,
+        borders: cell.borders,
+        lines: content.lines.map((line) => shift(line, padding.top)),
+        height: padding.top + content.height + padding.bottom,
+      });
+    }
+    if (plans.length === 0) return;
+
+    const natural = Math.max(...plans.map((plan) => plan.height));
+    let height = natural;
+    if (row.height.kind === 'atLeast') height = Math.max(natural, Math.max(0, row.height.value));
+    else if (row.height.kind === 'exact') {
+      height = Math.max(0, row.height.value);
+      if (natural > height + EPSILON)
+        warn(
+          'table-row-overflow',
+          'Cell content is taller than the exact row height; it is drawn without clipping.',
+        );
+    }
+    if (height <= 0) return;
+
+    const stops = [
+      ...new Set(plans.flatMap((plan) => plan.lines.map((line) => line.y + line.height))),
+    ].sort((a, b) => a - b);
+    let consumed = 0;
+    for (;;) {
+      const available = bottom - y;
+      if (height - consumed <= available + EPSILON) {
+        emitFragment(plans, consumed, height, consumed === 0, true);
+        return;
+      }
+      // Cut at the lowest line bottom that still fits, so no line straddles the page edge.
+      let cut = stops
+        .filter((stop) => stop > consumed + EPSILON && stop - consumed <= available + EPSILON)
+        .at(-1);
+      if (cut === undefined) {
+        if (page!.lines.length > 0 || page!.decorations.length > 0) {
+          newPage();
+          continue;
+        }
+        const next = stops.find((stop) => stop > consumed + EPSILON);
+        if (next === undefined) cut = Math.min(height, consumed + available);
+        else {
+          cut = next;
+          warn(
+            'oversized-table-row',
+            'A table line is taller than the page content area; it is placed once and may overflow.',
+          );
+        }
+      }
+      emitFragment(plans, consumed, cut, consumed === 0, false);
+      consumed = cut;
+      newPage();
+    }
+  }
+
+  function rowShift(row: Row): number {
+    const last = row.cells.at(-1)!;
+    const width = last.right - row.left;
+    if (!Number.isFinite(width) || width <= 0) return 0;
+    if (row.align === 'center') return (contentWidth - width) / 2 - row.left;
+    if (row.align === 'right') return contentWidth - width - row.left;
+    return 0;
+  }
+
+  /** Place the row slice [from, to) at the current y and draw the borders it owns. */
+  function emitFragment(
+    plans: CellPlan[],
+    from: number,
+    to: number,
+    first: boolean,
+    last: boolean,
+  ): void {
+    const height = to - from;
+    const top = y;
+    for (const plan of plans) {
+      // Lines are ordered, so the fragment consumes a prefix and leaves the rest for the
+      // next page. Consuming them keeps a line from being placed twice.
+      const remaining: DraftLine[] = [];
+      for (const line of plan.lines) {
+        if (line.y + line.height <= to + EPSILON) page!.lines.push(shift(line, top - from));
+        else remaining.push(line);
+      }
+      plan.lines = remaining;
+      const rules = page!.decorations;
+      border(rules, model, plan.borders.left, plan.left, top, 0, height);
+      border(rules, model, plan.borders.right, plan.right, top, 0, height);
+      if (first) border(rules, model, plan.borders.top, plan.left, top, plan.right - plan.left, 0);
+      if (last)
+        border(
+          rules,
+          model,
+          plan.borders.bottom,
+          plan.left,
+          top + height,
+          plan.right - plan.left,
+          0,
+        );
+    }
+    y = top + height;
+  }
 }

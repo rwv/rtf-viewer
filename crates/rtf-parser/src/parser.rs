@@ -960,7 +960,7 @@ impl<'a> Parser<'a> {
             "pgwsxn" | "pghsxn" | "marglsxn" | "margrsxn" | "margtsxn" | "margbsxn"
             | "guttersxn" | "lndscpsxn" => self.diagnostic(
                 "unsupported-section-geometry",
-                "Section-specific page geometry is not represented by schema version 1",
+                "Section-specific page geometry is not represented by the document model",
                 offset,
             ),
             "trowd" => self.begin_row(),
@@ -1087,7 +1087,7 @@ impl<'a> Parser<'a> {
             ),
             "rtlch" | "rtlpar" | "rtlrow" | "fbidi" => self.diagnostic(
                 "unsupported-bidirectional-text",
-                "Bidirectional text layout is not supported by schema version 1",
+                "Bidirectional text layout is not supported",
                 offset,
             ),
             "loch" | "hich" | "dbch" => self.diagnostic(

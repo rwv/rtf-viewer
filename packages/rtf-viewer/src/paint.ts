@@ -57,6 +57,10 @@ export async function paintPage(
     context.textBaseline = 'alphabetic';
     context.fontKerning = 'normal';
     context.direction = 'ltr';
+    for (const rule of page.decorations) {
+      context.fillStyle = rule.color;
+      context.fillRect(rule.x, rule.y, rule.width, rule.height);
+    }
     for (let lineIndex = 0; lineIndex < page.lines.length; lineIndex++) {
       if (lineIndex % 32 === 0) {
         await nextTask();

@@ -114,6 +114,42 @@ Page three marker.\par
 """ + hex_lines(png) + "\n}\n\\par\nJPEG, 16 by 12 pixels, displayed at 36 by 27 points:\\par\n{\\pict\\jpegblip\\picw16\\pich12\\picwgoal720\\pichgoal540\n" + hex_lines(jpeg) + "\n}\n\\par\n}",
     )
 
+    row_definition = (
+        r"\trowd\trgaph0"
+        r"\trpaddfl3\trpaddl60\trpaddfr3\trpaddr60\trpaddft3\trpaddt40\trpaddfb3\trpaddb40"
+        r"\trbrdrt\brdrs\brdrw20\trbrdrl\brdrs\brdrw20"
+        r"\trbrdrb\brdrs\brdrw20\trbrdrr\brdrs\brdrw20"
+        r"\trbrdrh\brdrs\brdrw10\trbrdrv\brdrs\brdrw10"
+    )
+    boundaries = r"\cellx1200\cellx2400\cellx3600"
+    cell_start = r"\pard\intbl\sl-240\slmult0 "
+
+    def table_row(cells: list[str], extra: str = "") -> str:
+        definition = row_definition + extra + boundaries
+        body = "".join(cell_start + text + "\\cell" for text in cells)
+        return definition + "\n" + body + "\\row"
+
+    tall_cell = "\\par ".join(f"Line {index}." for index in range(1, 9))
+    write_text(
+        "ordinary-table.rtf",
+        r"""{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\froman\fcharset0 Liberation Serif;}}
+{\colortbl;\red32\green84\blue147;}
+\paperw4320\paperh4320\margl360\margr360\margt360\margb360
+\f0\fs24\sl-240\slmult0
+"""
+        + "\n".join(
+            [
+                table_row(["Region", "Units", "Share"]),
+                table_row(["North", "1200", "42%"]),
+                table_row([r"Two\line lines", "980", "34%"]),
+                table_row(["Exact", "700", "24%"], extra=r"\trrh-480"),
+                table_row([tall_cell, "Right", "Cell"]),
+            ]
+        )
+        + "\n\\pard\\sl-240\\slmult0 After the table.\\par\n}",
+    )
+
     write_text(
         "showcase.rtf",
         """{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1

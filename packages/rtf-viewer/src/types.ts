@@ -46,6 +46,15 @@ export interface ImageFragment {
   readonly width: number;
   readonly height: number;
 }
+/** A filled rectangle placed beneath the text, currently only table borders. */
+export interface RuleFragment {
+  readonly kind: 'rule';
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly color: string;
+}
 export type Fragment = TextFragment | ImageFragment;
 export interface LineLayout {
   readonly x: number;
@@ -58,6 +67,8 @@ export interface LineLayout {
 export interface PageLayout extends PageSize {
   readonly index: number;
   readonly lines: readonly LineLayout[];
+  /** Rectangles painted before the lines, in back-to-front order. */
+  readonly decorations: readonly RuleFragment[];
 }
 export interface DocumentLayout {
   readonly pages: readonly PageLayout[];
