@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Upgrade the Node runtime and its declarations together.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       development:
         patterns: ['*']
