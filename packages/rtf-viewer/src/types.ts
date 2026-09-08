@@ -7,6 +7,13 @@ export interface LoadOptions {
   /** Font names mapped to caller-prepared local/CSS font families. */
   fonts?: Readonly<Record<string, string>>;
   fallbackFont?: string;
+  /**
+   * Line box per em for a font name, replacing what the browser reports for that face. A
+   * producer lays out with the font's ascent, descent and line gap; Canvas reports the first
+   * two and no browser exposes the third, so an application that knows which fonts it ships
+   * can declare the factor its producer used. Keyed like `fonts`, by the font name the document itself declares.
+   */
+  lineHeights?: Readonly<Record<string, number>>;
   /** Optional deployment overrides. Defaults are assets adjacent to this module. */
   workerUrl?: string | URL;
   wasmUrl?: string | URL;

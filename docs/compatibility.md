@@ -76,18 +76,30 @@ The browser engine was run against the real LibreOffice RTF through the producti
 
 The table compares the engine's retained line rectangle with Poppler's bounding box for the corresponding LibreOffice PDF text. `Δx` and `Δy` are engine minus reference in points. A line rectangle and a PDF ink box do not have identical semantics, so these deltas establish a practical baseline rather than a pixel-equality requirement.
 
-| Marker                 |       Engine x/y |    Reference x/y |           Δx/Δy | Engine/reference right edge |
-| ---------------------- | ---------------: | ---------------: | --------------: | --------------------------: |
-| `LibreOffice RTF`      |  36.000 / 48.000 |  36.100 / 48.610 | -0.100 / -0.610 |           171.000 / 170.938 |
-| `Reference`            |  36.000 / 68.000 |  36.100 / 69.310 | -0.100 / -1.310 |           123.000 / 123.076 |
-| `Plain ... underlined` | 36.000 / 100.000 | 36.100 / 101.908 | -0.100 / -1.908 |           235.000 / 239.926 |
-| `words.`               | 36.000 / 114.000 | 36.100 / 115.708 | -0.100 / -1.708 |             69.000 / 68.392 |
-| Indented first line    | 90.000 / 138.000 | 90.100 / 139.508 | -0.100 / -1.508 |           241.000 / 244.264 |
-| Indented continuation  | 72.000 / 152.000 | 72.100 / 153.308 | -0.100 / -1.308 |           238.000 / 239.308 |
-| `Unicode text...`      | 36.000 / 180.000 | 36.100 / 177.788 | -0.100 / +2.212 |           215.000 / 217.700 |
-| `Continuation Marker`  | 36.000 / 216.000 | 36.100 / 216.810 | -0.100 / -0.810 |           211.000 / 210.916 |
-| `This sentence...`     | 36.000 / 248.000 | 36.100 / 249.408 | -0.100 / -1.408 |           235.000 / 238.564 |
-| `Final marker...`      | 36.000 / 272.000 | 36.100 / 273.208 | -0.100 / -1.208 |           164.000 / 165.976 |
+| Marker                 |       Engine x/y |    Reference x/y |           Δx/Δy | Engine y without the declaration |
+| ---------------------- | ---------------: | ---------------: | --------------: | -------------------------------: |
+| `LibreOffice RTF`      |  36.000 / 48.000 |  36.100 / 48.610 | -0.100 / -0.610 |                           48.000 |
+| `Reference`            |  36.000 / 68.698 |  36.100 / 69.310 | -0.100 / -0.612 |                           68.106 |
+| `Plain ... underlined` | 36.000 / 101.396 | 36.100 / 101.908 | -0.100 / -0.512 |                          100.212 |
+| `words.`               | 36.000 / 115.195 | 36.100 / 115.708 | -0.100 / -0.513 |                          113.496 |
+| Indented first line    | 90.000 / 138.994 | 90.100 / 139.508 | -0.100 / -0.514 |                          136.780 |
+| Indented continuation  | 72.000 / 152.793 | 72.100 / 153.308 | -0.100 / -0.515 |                          150.064 |
+| `Unicode text...`      | 36.000 / 180.391 | 36.100 / 177.788 | -0.100 / +2.603 |                          176.632 |
+| `Continuation Marker`  | 36.000 / 216.189 | 36.100 / 216.810 | -0.100 / -0.621 |                          211.916 |
+| `This sentence...`     | 36.000 / 248.888 | 36.100 / 249.408 | -0.100 / -0.520 |                          244.022 |
+| `Final marker...`      | 36.000 / 272.686 | 36.100 / 273.208 | -0.100 / -0.522 |                          267.306 |
+
+The engine column is the run with `lineHeights: { 'Liberation Serif': 1.149902, 'Liberation Sans': 1.149902 }`, the line box those faces declare. The vertical delta is then a constant -0.51 to -0.62 pt, which is the difference between a retained line rectangle and a PDF ink box, and it does not accumulate: the engine's line pitch is the producer's. The last column is the same run without the declaration, where the browser's own metrics leave out the font's line gap and the offset grows to -5.9 pt by the foot of the page. The unmatched-ink ratio at 96 PPI is 0.0018 with the declaration and 0.083 without it.
+
+| Line box for Liberation Serif | Em factor |           Source |
+| ----------------------------- | --------: | ---------------: |
+| hhea ascent + descent + gap   |  1.149902 |     the producer |
+| Canvas `fontBoundingBox` sum  |     1.107 | Chromium, WebKit |
+| Canvas `fontBoundingBox` sum  |     1.109 |          Firefox |
+| CSS `line-height: normal`     |     1.149 | Chromium, WebKit |
+| CSS `line-height: normal`     |     1.109 |          Firefox |
+
+Canvas has no line-gap field, and the one place a browser does expose the producer's rule disagrees across engines by 3.6 percent, which would make page breaks depend on the browser. So the engine measures what Canvas reports and lets the caller declare the rest.
 
 The engine raster was also visually inspected at native resolution. Text remains unclipped and non-overlapping; bold, italic, underline, paragraph indentation, and Chinese fallback are visibly present. The engine reported bounded compatibility notices for unsupported LibreOffice metadata, stylesheet, footnote, and section controls. Those notices did not alter the page dimensions, text order, or line breaks. This comparison does not claim general LibreOffice fidelity beyond this fixture.
 
@@ -114,23 +126,24 @@ The document is a twelve-row, three-column bordered table on 288 × 360 pt pages
 
 The engine was run against this file through the production-built harness with the bundled Liberation fonts. It produced three pages of 288 × 360 pt, preserved the reading order, and made the same line breaks inside cells: every line it emitted appears unbroken in Poppler's text extraction of the reference, including `A note long enough to wrap` / `inside its own cell.` and `Row 01 continues the table past` / `the first page.` It reports no table diagnostic at all.
 
-| Measurement                        |                            Engine |                           Reference | Delta and classification                                      |
-| ---------------------------------- | --------------------------------: | ----------------------------------: | ------------------------------------------------------------- |
-| Page count                         |                                 3 |                                   3 | equal                                                         |
-| Body cell content left edges       |            38.25 / 88.50 / 130.50 |              38.70 / 88.90 / 130.95 | +0.40 to +0.45 pt of inset the file never asks for (`layout`) |
-| Centred header cell left edges     |          46.125 / 95.75 / 188.125 |              46.55 / 96.30 / 188.10 | same centring, within the same inset (`layout`)               |
-| Producer's own cell rules          |     35.625 / 85.875 / 127.875 (a) |     36.000 / 86.280 / 128.280 / (b) | boundaries agree within 1/100 mm rounding                     |
-| Single-line row pitch              |                          23.50 pt |                            24.15 pt | -0.65 pt per row from the line box (`font`)                   |
-| Two-line note row, first text line |                          97.75 pt |                            99.69 pt | -1.94 pt from the line box (`font`)                           |
-| Two-line note row, `North`         |                         103.25 pt |                           105.44 pt | centring applied; -2.19 pt from the line box (`font`)         |
-| Row broken across pages 1 and 2    | Zone 01, after its last text line | Zone 01, between its two text lines | different break offset from the pitch delta (`layout`)        |
-| Rule across the top of page 2      |                       y 35.875 pt |                         y 36.000 pt | the break's own edge, now closed (`paint`)                    |
+| Measurement                        |                              Engine |                           Reference | Delta and classification                                      |
+| ---------------------------------- | ----------------------------------: | ----------------------------------: | ------------------------------------------------------------- |
+| Page count                         |                                   3 |                                   3 | equal                                                         |
+| Body cell content left edges       |              38.25 / 88.50 / 130.50 |              38.70 / 88.90 / 130.95 | +0.40 to +0.45 pt of inset the file never asks for (`layout`) |
+| Centred header cell left edges     |            46.125 / 95.75 / 188.125 |              46.55 / 96.30 / 188.10 | same centring, within the same inset (`layout`)               |
+| Producer's own cell rules          |       35.625 / 85.875 / 127.875 (a) |     36.000 / 86.280 / 128.280 / (b) | boundaries agree within 1/100 mm rounding                     |
+| Single-line row pitch              |                           23.999 pt |                            24.15 pt | -0.151 pt per row, not the line box (`font`)                  |
+| Two-line note row, first text line |                           98.348 pt |                            99.69 pt | -1.34 pt, line box against ink box (`font`)                   |
+| Two-line note row, `North`         |                          104.097 pt |                           105.44 pt | centring applied; -1.34 pt (`font`)                           |
+| Row broken across pages 1 and 2    | Zone 01, between its two text lines | Zone 01, between its two text lines | equal                                                         |
+| First line of page 3               |            Zone 09, its second line |             Zone 09, its first line | one line ahead from the residual pitch (`layout`)             |
+| Rule across the top of page 2      |                         y 35.875 pt |                         y 36.000 pt | the break's own edge, now closed (`paint`)                    |
 
 (a) The engine's strokes are centred on the boundary, so a 0.75 pt border reads 0.375 pt to its left. (b) The producer's rules were read from a 600 DPI rasterisation of reference page 1 and run from the boundary rightwards for 0.72 pt; the fourth is at 267.000 pt against the engine's 266.625.
 
 Every remaining delta above is recorded in `fixtures/corpus.json` with its measurement and the issue that tracks it. Vertical cell alignment was an open `layout` delta until issue #25; the producer's centring is now reproduced and only the line-box residual remains inside the row. The continuation rule was an open `paint` delta until issue #42: a page break is the engine's own doing, so the edge it creates is now closed with the border the cell does declare. The content inset is accepted rather than open, because the measurement rules out every mechanism the file could explain it by — the producer's rules sit on the engine's boundaries, two columns with the same hairline left border differ from each other by 0.05 pt, and the document declares no `\li` or `\fi` anywhere.
 
-The pitch delta accumulates: by the end of the table the engine is roughly one row ahead, so page three begins with `Zone 10` rather than `Total`. Page count, column geometry, in-cell line breaking, vertical alignment and the continuation rule match; the line box and the producer's own inset do not. This comparison does not claim general LibreOffice table fidelity beyond this fixture.
+The table figures are the run with the declared line box, as above. It changes the picture: the row pitch was 23.50 pt against the producer's 24.15 and is now 23.999, so the engine breaks the Zone 01 row in exactly the place the producer does instead of keeping it whole. What is left is 0.151 pt per row that is not the line box — the text document proves the declared box is the producer's exactly — and by page three that residual has accumulated into a one-line offset rather than a one-row one. Page count, column geometry, in-cell line breaking, vertical alignment, the first page break and the continuation rule match; the residual row pitch and the producer's own inset do not. This comparison does not claim general LibreOffice table fidelity beyond this fixture.
 
 ## Real LibreOffice list artifact
 

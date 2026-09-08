@@ -3,6 +3,8 @@ import type { LayoutServices, LoadOptions, PageSize, TextMetricsPt } from './typ
 import { abortable, checkAbort } from './lifecycle.js';
 import { sniffRasterDimensions } from './vendor/raster-dimensions.js';
 
+/** Font metrics are measured at this size and scaled, to escape whole-pixel rounding. */
+const METRIC_REFERENCE_SIZE = 1000;
 const GENERIC_FONT_FAMILIES = new Set(['serif', 'sans-serif', 'monospace', 'system-ui']);
 // oxlint-disable-next-line eslint/no-control-regex -- Strip control bytes from untrusted font names.
 const sanitizeFontFamily = (name: string) => name.replace(/[\r\n\x00-\x1f]/g, '').slice(0, 200);
@@ -14,6 +16,9 @@ export class BrowserResources implements LayoutServices {
   private readonly sizes = new Map<string, PageSize>();
   private readonly metrics = new Map<string, TextMetricsPt>();
   private readonly names: Map<number, string>;
+  /** Declared line box per em, by font id, from the caller's `lineHeights`. */
+  private readonly lineBoxes: Map<number, number>;
+  private readonly faceMetrics = new Map<string, { ascent: number; descent: number }>();
   private readonly canvas = new OffscreenCanvas(1, 1);
   private readonly context: OffscreenCanvasRenderingContext2D;
   private readonly usedFontFamilies = new Set<string>();
@@ -46,6 +51,17 @@ export class BrowserResources implements LayoutServices {
             ? options.fonts[font.name]
             : undefined;
         return [font.id, typeof mapped === 'string' ? mapped : font.name];
+      }),
+    );
+    this.lineBoxes = new Map(
+      model.fonts.flatMap((font) => {
+        const declared =
+          options.lineHeights && Object.hasOwn(options.lineHeights, font.name)
+            ? options.lineHeights[font.name]
+            : undefined;
+        return typeof declared === 'number' && Number.isFinite(declared) && declared > 0
+          ? [[font.id, declared] as [number, number]]
+          : [];
       }),
     );
     for (const block of model.blocks) {
@@ -98,6 +114,48 @@ export class BrowserResources implements LayoutServices {
     const fallback = this.options.fallbackFont ? `${quoted(this.options.fallbackFont)}, ` : '';
     return `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSize}px ${quoted(family)}, ${fallback}serif`;
   }
+  /**
+   * Ascent and descent per em for one face, measured once at a large size and scaled.
+   * A browser rounds font bounding box metrics to whole pixels, so measuring at the size the
+   * document asks for makes the line box depend on that size: Liberation Serif reports 11.00 pt
+   * at 10 pt where the face is 11.07. Measuring large removes the rounding without asking the
+   * browser for anything it computes differently from its peers.
+   */
+  private faceEm(style: TextStyle): { ascent: number; descent: number } {
+    const face = this.font({ ...style, fontSize: METRIC_REFERENCE_SIZE, baseline: 0 });
+    // Two document fonts can resolve to one CSS family and still declare different line
+    // boxes, so the cache is keyed by both.
+    const key = `${style.fontId}\u0000${face}`;
+    const known = this.faceMetrics.get(key);
+    if (known) return known;
+    this.context.font = face;
+    const metrics = this.context.measureText('Mg');
+    const em = {
+      ascent:
+        (metrics.fontBoundingBoxAscent ??
+          Math.max(metrics.actualBoundingBoxAscent, METRIC_REFERENCE_SIZE * 0.8)) /
+        METRIC_REFERENCE_SIZE,
+      descent:
+        (metrics.fontBoundingBoxDescent ??
+          Math.max(metrics.actualBoundingBoxDescent, METRIC_REFERENCE_SIZE * 0.2)) /
+        METRIC_REFERENCE_SIZE,
+    };
+    // A declared line box replaces the face's own, keeping its ascent-to-descent ratio so the
+    // baseline stays where the face puts it. No browser exposes the line gap a producer uses,
+    // and the one that does expose it through CSS disagrees with the others, so this is the
+    // caller's to declare rather than the engine's to guess.
+    const declared = this.lineBoxes.get(style.fontId);
+    if (declared !== undefined) {
+      const natural = em.ascent + em.descent;
+      const scale = natural > 0 ? declared / natural : 0;
+      em.ascent *= scale;
+      em.descent *= scale;
+    }
+    if (!Number.isFinite(em.ascent) || !Number.isFinite(em.descent))
+      throw new Error('Invalid font metrics.');
+    if (this.faceMetrics.size < 1024) this.faceMetrics.set(key, em);
+    return em;
+  }
   measure(text: string, style: TextStyle): TextMetricsPt {
     if (this.closed) throw new Error('Document resources were destroyed.');
     const font = this.font(style);
@@ -106,14 +164,11 @@ export class BrowserResources implements LayoutServices {
     if (known) return known;
     this.context.font = font;
     const metrics = this.context.measureText(text);
+    const em = this.faceEm(style);
     const measured = {
       width: metrics.width,
-      ascent:
-        metrics.fontBoundingBoxAscent ??
-        Math.max(metrics.actualBoundingBoxAscent, style.fontSize * 0.8),
-      descent:
-        metrics.fontBoundingBoxDescent ??
-        Math.max(metrics.actualBoundingBoxDescent, style.fontSize * 0.2),
+      ascent: em.ascent * style.fontSize,
+      descent: em.descent * style.fontSize,
     };
     if (![measured.width, measured.ascent, measured.descent].every(Number.isFinite))
       throw new Error('Invalid font metrics.');
