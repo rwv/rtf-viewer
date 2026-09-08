@@ -7,7 +7,30 @@ export type LineSpacing = { "kind": "auto" } | { "kind": "exact", "value": numbe
 export type TextStyle = { fontId: number, fontSize: number, bold: boolean, italic: boolean, underline: boolean, strike: boolean, color: number | null, highlight: number | null, hidden: boolean, baseline: number, };
 export type ParagraphStyle = { align: ParagraphAlign, leftIndent: number, rightIndent: number, firstLineIndent: number, spaceBefore: number, spaceAfter: number, lineSpacing: LineSpacing, pageBreakBefore: boolean, };
 export type Run = { "kind": "text", text: string, style: TextStyle, } | { "kind": "image", imageId: string, };
-export type Block = { "kind": "paragraph", runs: Array<Run>, style: ParagraphStyle, markStyle: TextStyle, } | { "kind": "pageBreak" };
+export type RowAlign = "left" | "center" | "right";
+export type RowHeight = { "kind": "auto" } | { "kind": "atLeast", "value": number } | { "kind": "exact", "value": number };
+export type BorderStyle = "single" | "double" | "dotted" | "dashed" | "other";
+export type Border = { 
+/**
+ * Stroke width in points.
+ */
+width: number, color: number | null, style: BorderStyle, };
+export type CellBorders = { top: Border | null, left: Border | null, bottom: Border | null, right: Border | null, };
+export type Padding = { left: number, top: number, right: number, bottom: number, };
+export type TableCell = { 
+/**
+ * Right boundary in points, measured from the left page margin (`\cellx`).
+ */
+right: number, 
+/**
+ * Cell content. Schema version 2 only ever contains paragraphs.
+ */
+blocks: Array<Block>, padding: Padding, borders: CellBorders, };
+export type Block = { "kind": "paragraph", runs: Array<Run>, style: ParagraphStyle, markStyle: TextStyle, } | { "kind": "pageBreak" } | { "kind": "row", cells: Array<TableCell>, 
+/**
+ * Left edge of the row in points, measured from the left page margin.
+ */
+left: number, height: RowHeight, align: RowAlign, };
 export type ImageFormat = "png" | "jpeg" | "wmf" | "emf" | "unknown";
 export type ImageResource = { id: string, format: ImageFormat, data: Array<number>, width: number | null, height: number | null, };
 export type Diagnostic = { code: string, message: string, offset: number, };

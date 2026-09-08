@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { layoutDocument } from './layout.js';
 import { pixelSize } from './paint.js';
-import type { Block, DocumentModel, ParagraphStyle, TextStyle } from './generated/model.js';
+import type {
+  Block,
+  DocumentModel,
+  ParagraphStyle,
+  TableCell,
+  TextStyle,
+} from './generated/model.js';
 import type { LayoutServices } from './types.js';
 const textStyle: TextStyle = {
   fontId: 0,
@@ -46,7 +52,7 @@ function paragraph(text: string, style: Partial<ParagraphStyle> = {}): Block {
 }
 function model(blocks: Block[], contentWidth = 50, contentHeight = 30): DocumentModel {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     page: {
       width: contentWidth + 20,
       height: contentHeight + 20,
@@ -208,5 +214,154 @@ describe('retained point geometry', () => {
     expect(JSON.stringify(layout)).toBe(before);
     expect(() => pixelSize(layout.pages[0], { ppi: NaN })).toThrow();
     expect(() => pixelSize(layout.pages[0], { ppi: 100_000 })).toThrow();
+  });
+});
+
+type Row = Extract<Block, { kind: 'row' }>;
+const noBorders: TableCell['borders'] = { top: null, left: null, bottom: null, right: null };
+const noPadding: TableCell['padding'] = { left: 0, top: 0, right: 0, bottom: 0 };
+function tableCell(texts: string[], right: number, over: Partial<TableCell> = {}): TableCell {
+  return {
+    right,
+    blocks: texts.map((text) => paragraph(text)),
+    padding: noPadding,
+    borders: noBorders,
+    ...over,
+  };
+}
+function tableRow(cells: TableCell[], over: Partial<Omit<Row, 'kind'>> = {}): Block {
+  return { kind: 'row', cells, left: 0, height: { kind: 'auto' }, align: 'left', ...over };
+}
+const rule = (width: number) => ({ width, color: null, style: 'single' as const });
+
+describe('ordinary table geometry', () => {
+  it('places cells side by side so widths sum to the row width and nothing overlaps', async () => {
+    const layout = await layoutDocument(
+      model([tableRow([tableCell(['abcd'], 20), tableCell(['ef'], 45)])], 50, 100),
+      services,
+    );
+    const lines = layout.pages[0].lines;
+    expect(lines.map((line) => [line.x, line.y])).toEqual([
+      [10, 10],
+      [30, 10],
+    ]);
+    // Boundaries are contiguous: 10..30 and 30..55, so the widths sum to the 45 pt row.
+    expect(lines[0].x + lines[0].width).toBeLessThanOrEqual(lines[1].x);
+    expect(lines.every((line) => line.width > 0)).toBe(true);
+  });
+  it('insets content by cell padding and sizes the row from the tallest cell', async () => {
+    const padded = tableCell(['abcd'], 20, {
+      padding: { left: 2, top: 3, right: 3, bottom: 4 },
+    });
+    const layout = await layoutDocument(
+      model([tableRow([padded, tableCell(['x'], 40)]), paragraph('after')], 50, 100),
+      services,
+    );
+    const lines = layout.pages[0].lines;
+    // 15 pt of content width splits "abcd" after three clusters.
+    expect(lines.slice(0, 2).map((line) => [line.x, line.y])).toEqual([
+      [12, 13],
+      [12, 23],
+    ]);
+    expect(lines[2]).toMatchObject({ x: 30, y: 10 });
+    // 3 + 10 + 10 + 4 pt of cell height decides the row height.
+    expect(lines.at(-1)).toMatchObject({ y: 37 });
+  });
+  it('honours at-least and exact row heights and reports content that overflows', async () => {
+    const atLeast = await layoutDocument(
+      model(
+        [
+          tableRow([tableCell(['a'], 40)], { height: { kind: 'atLeast', value: 40 } }),
+          paragraph('b'),
+        ],
+        50,
+        100,
+      ),
+      services,
+    );
+    expect(atLeast.pages[0].lines.at(-1)).toMatchObject({ y: 50 });
+    const exact = await layoutDocument(
+      model(
+        [tableRow([tableCell(['a'], 40)], { height: { kind: 'exact', value: 5 } }), paragraph('b')],
+        50,
+        100,
+      ),
+      services,
+    );
+    // The row advances by its exact height and the overflowing content is still drawn.
+    expect(exact.pages[0].lines.map((line) => [textOf(line), line.y])).toEqual([
+      ['a', 10],
+      ['b', 15],
+    ]);
+    expect(exact.diagnostics.map((d) => d.code)).toContain('table-row-overflow');
+  });
+  it('centres and right-aligns a row inside the page content box', async () => {
+    const centred = await layoutDocument(
+      model([tableRow([tableCell(['a'], 20)], { align: 'center' })], 50, 100),
+      services,
+    );
+    expect(centred.pages[0].lines[0].x).toBe(25);
+    const right = await layoutDocument(
+      model([tableRow([tableCell(['a'], 20)], { align: 'right' })], 50, 100),
+      services,
+    );
+    expect(right.pages[0].lines[0].x).toBe(40);
+  });
+  it('draws borders as rectangles centred on the cell boundary', async () => {
+    const bordered = tableCell(['a'], 20, {
+      borders: { top: rule(1), left: rule(1), bottom: rule(2), right: null },
+    });
+    const layout = await layoutDocument(model([tableRow([bordered])], 50, 100), services);
+    expect(layout.pages[0].decorations).toEqual([
+      { kind: 'rule', x: 9.5, y: 10, width: 1, height: 10, color: '#000000' },
+      { kind: 'rule', x: 10, y: 9.5, width: 20, height: 1, color: '#000000' },
+      { kind: 'rule', x: 10, y: 19, width: 20, height: 2, color: '#000000' },
+    ]);
+  });
+  it('continues a tall row on the next page at a line boundary', async () => {
+    const tall = tableCell(['a', 'b', 'c', 'd', 'e'], 20, {
+      borders: { top: rule(1), left: rule(1), bottom: rule(1), right: rule(1) },
+    });
+    const layout = await layoutDocument(
+      model([tableRow([tall, tableCell(['z'], 40)]), paragraph('after')], 50, 30),
+      services,
+    );
+    expect(layout.pages).toHaveLength(2);
+    expect(layout.pages[0].lines.map(textOf)).toEqual(['a', 'b', 'c', 'z']);
+    expect(layout.pages[1].lines.map(textOf)).toEqual(['d', 'e', 'after']);
+    expect(layout.pages[0].lines.map((line) => line.y)).toEqual([10, 20, 30, 10]);
+    expect(layout.pages[1].lines.map((line) => line.y)).toEqual([10, 20, 30]);
+    // Each fragment is closed above and below, so the break itself is drawn.
+    const horizontal = (page: (typeof layout.pages)[number]) =>
+      page.decorations.filter((decoration) => decoration.width > decoration.height).map((d) => d.y);
+    expect(horizontal(layout.pages[0])).toEqual([9.5, 39.5]);
+    expect(horizontal(layout.pages[1])).toEqual([9.5, 29.5]);
+    // Vertical cell walls are drawn on both fragments.
+    expect(layout.pages[0].decorations.filter((d) => d.height > d.width)).toHaveLength(2);
+    expect(layout.pages[1].decorations.filter((d) => d.height > d.width)).toHaveLength(2);
+  });
+  it('skips a cell boundary that does not advance and keeps the rest of the row', async () => {
+    const layout = await layoutDocument(
+      model(
+        [tableRow([tableCell(['a'], 20), tableCell(['b'], 20), tableCell(['c'], 40)])],
+        50,
+        100,
+      ),
+      services,
+    );
+    expect(layout.pages[0].lines.map(textOf)).toEqual(['a', 'c']);
+    expect(layout.diagnostics.map((d) => d.code)).toContain('invalid-cell-boundary');
+  });
+  it('clamps a cell whose padding leaves no content width', async () => {
+    const layout = await layoutDocument(
+      model(
+        [tableRow([tableCell(['ab'], 10, { padding: { left: 6, top: 0, right: 6, bottom: 0 } })])],
+        50,
+        100,
+      ),
+      services,
+    );
+    expect(layout.diagnostics.map((d) => d.code)).toContain('narrow-table-cell');
+    expect(layout.pages[0].lines.map(textOf).join('')).toBe('ab');
   });
 });

@@ -10,6 +10,7 @@
     "build:wasm": "cargo build --locked -p rtf-parser --release --target wasm32-unknown-unknown && wasm-bindgen target/wasm32-unknown-unknown/release/rtf_parser.wasm --target web --out-dir packages/rtf-viewer/.wasm --out-name rtf_parser",
     "generate:types": "cargo run --locked --quiet -p rtf-parser --example generate_types -- --write",
     "check:contract": "cargo run --locked --quiet -p rtf-parser --example generate_types -- --check",
+    "check:corpus": "node scripts/corpus.ts",
     "build:lib": "pnpm build:wasm && node scripts/build.ts && tsc -p packages/rtf-viewer/tsconfig.build.json",
     "build": "pnpm build:lib && pnpm --filter @rtf-viewer/example build",
     "dev": "pnpm build:lib && pnpm --filter @rtf-viewer/example dev --host 127.0.0.1",

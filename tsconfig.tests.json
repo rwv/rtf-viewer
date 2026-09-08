@@ -5,6 +5,8 @@
   },
   "include": [
     "packages/**/*.test.ts",
+    "scripts/corpus.ts",
+    "scripts/**/*.test.ts",
     "tests/**/*.ts",
     "examples/viewer/src/test-harness.ts",
     "*.config.ts",

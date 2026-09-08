@@ -1,24 +1,25 @@
 # Compatibility fixtures and independent reference
 
-This document records the current fixture evidence. Synthetic fixtures state an objective semantic or geometry expectation. The LibreOffice artifact and its exports record one observed producer result; they are compatibility evidence rather than a normative interpretation of RTF.
+This document records the current fixture evidence. Synthetic fixtures state an objective semantic or geometry expectation. The LibreOffice artifacts and their exports record observed producer results; they are compatibility evidence rather than a normative interpretation of RTF. Their provenance and classified deltas are also held machine-readably in `fixtures/corpus.json`, described in [corpus](corpus.md) and checked by `pnpm check:corpus`.
 
 ## Synthetic fixtures
 
-All synthetic files and image sources are original CC0 material. Run `python3 scripts/generate-reference.py` from the repository root to recreate them. The script requires Python 3 and Pillow; this run used Python Pillow 12.1.1.
+All synthetic files and image sources are original CC0 material. Run `python3 scripts/generate-reference.py` from the repository root to recreate them. The script requires Python 3 and Pillow. The image payloads were first generated with Pillow 12.1.1 and regenerate byte-identically under Pillow 12.3.0.
 
-| Fixture                    | Isolated purpose                                             | Objective expectations useful in tests                                                                                                                                                                                                                                                                                                                                                          |
-| -------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common-text-styles.rtf`   | Direct character styles                                      | One Letter page; six paragraphs; the literal ranges are respectively plain, bold, italic, underlined, struck, and bold + italic + underlined. Every reset occurs before the paragraph end.                                                                                                                                                                                                      |
-| `unicode-en-zh.rtf`        | English and Chinese Unicode using `\uc1` and `\uN?` fallback | One Letter page; decoded lines are `English: Hello, world!`, `Chinese: 中文 你好世界`, and `Mixed: RTF 文本 2026.`; fallback question marks do not survive decoding.                                                                                                                                                                                                                            |
-| `automatic-pagination.rtf` | Automatic pagination on explicit small paper                 | Two 216 × 216 pt pages with 18 pt margins and 180 × 180 pt usable area; 24 distinct paragraphs use exact 12 pt line spacing (`\sl-240`). Lines 01–15 occupy page 1 and lines 16–24 page 2. There is no `\page` control.                                                                                                                                                                         |
-| `explicit-pages.rtf`       | Explicit page breaks                                         | Exactly three Letter pages containing one marker each: page one, page two, and page three.                                                                                                                                                                                                                                                                                                      |
-| `indents-spacing.rtf`      | First-line and hanging indents plus paragraph/line spacing   | One Letter page with 90 pt horizontal and 72 pt vertical margins. Paragraph 1 has left/right indents of 36 pt, a +18 pt first-line indent, 12 pt before, and 18 pt after: first-line x = 144 pt, continuation x = 126 pt, right edge = 486 pt. Paragraph 2 has a 54 pt left indent and -18 pt first-line indent: first-line x = 126 pt, continuation x = 144 pt; its line spacing is 1.5 lines. |
-| `inline-png-jpeg.rtf`      | Inline raster image decoding                                 | One Letter page; one PNG and one JPEG, each declares 16 × 12 source pixels and 720 × 540 twip goals, so each layout rectangle is 36 × 27 pt. Embedded payload bytes equal the adjacent files in `assets/`.                                                                                                                                                                                      |
-| `showcase.rtf`             | Original redistributable combined example                    | Exactly two 432 × 540 pt pages with 45 pt margins. Page 1 contains the title, styles, hanging paragraph, English/Chinese Unicode, and a PNG displayed at 72 × 54 pt. Page 2 starts at the explicit `\page` and contains its marker plus a JPEG displayed at 72 × 54 pt.                                                                                                                         |
+| Fixture                    | Isolated purpose                                                 | Objective expectations useful in tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common-text-styles.rtf`   | Direct character styles                                          | One Letter page; six paragraphs; the literal ranges are respectively plain, bold, italic, underlined, struck, and bold + italic + underlined. Every reset occurs before the paragraph end.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `unicode-en-zh.rtf`        | English and Chinese Unicode using `\uc1` and `\uN?` fallback     | One Letter page; decoded lines are `English: Hello, world!`, `Chinese: 中文 你好世界`, and `Mixed: RTF 文本 2026.`; fallback question marks do not survive decoding.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `automatic-pagination.rtf` | Automatic pagination on explicit small paper                     | Two 216 × 216 pt pages with 18 pt margins and 180 × 180 pt usable area; 24 distinct paragraphs use exact 12 pt line spacing (`\sl-240`). Lines 01–15 occupy page 1 and lines 16–24 page 2. There is no `\page` control.                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `explicit-pages.rtf`       | Explicit page breaks                                             | Exactly three Letter pages containing one marker each: page one, page two, and page three.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `indents-spacing.rtf`      | First-line and hanging indents plus paragraph/line spacing       | One Letter page with 90 pt horizontal and 72 pt vertical margins. Paragraph 1 has left/right indents of 36 pt, a +18 pt first-line indent, 12 pt before, and 18 pt after: first-line x = 144 pt, continuation x = 126 pt, right edge = 486 pt. Paragraph 2 has a 54 pt left indent and -18 pt first-line indent: first-line x = 126 pt, continuation x = 144 pt; its line spacing is 1.5 lines.                                                                                                                                                                                                                                     |
+| `inline-png-jpeg.rtf`      | Inline raster image decoding                                     | One Letter page; one PNG and one JPEG, each declares 16 × 12 source pixels and 720 × 540 twip goals, so each layout rectangle is 36 × 27 pt. Embedded payload bytes equal the adjacent files in `assets/`.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `ordinary-table.rtf`       | Single-level table geometry, borders and cross-page continuation | Exactly two 216 × 216 pt pages with 18 pt margins. Three columns end at 60, 120 and 180 pt from the left margin; every cell has 3 pt horizontal and 2 pt vertical padding, so content begins at x = 21, 81 and 141 pt. Outer borders are 1 pt and inner borders 0.5 pt, each centred on its boundary. Rows start at y = 18, 34, 50, 78 and 102 pt; the fourth row uses an exact 24 pt height. The last row is 8 lines tall, breaks after its seventh line at y = 188 pt and continues at the top of page two, where `After the table.` follows at y = 32 pt. Exact 12 pt line spacing keeps every position independent of the font. |
+| `showcase.rtf`             | Original redistributable combined example                        | Exactly two 432 × 540 pt pages with 45 pt margins. Page 1 contains the title, styles, hanging paragraph, English/Chinese Unicode, and a PNG displayed at 72 × 54 pt. Page 2 starts at the explicit `\page` and contains its marker plus a JPEG displayed at 72 × 54 pt.                                                                                                                                                                                                                                                                                                                                                             |
 
-LibreOffice 25.2.3.2 was used as a secondary sanity check, not as the source of these expectations. It produced the page counts above and placed automatic markers 01–15 on the first page and 16–24 on the second.
+LibreOffice 25.2.3.2 was used as a secondary sanity check for the first seven fixtures, not as the source of their expectations. It produced the page counts above and placed automatic markers 01–15 on the first page and 16–24 on the second. `ordinary-table.rtf` states geometry derived from the specification rules in [spec notes](spec-notes.md); the producer comparison for tables is the separate LibreOffice 24.2.7.2 artifact below.
 
-## Real LibreOffice producer artifact
+## Real LibreOffice text artifact
 
 `fixtures/real/libreoffice-25.2.3.2.rtf` is a real LibreOffice RTF export, not a handcrafted file carrying a producer label. Its RTF generator field is `LibreOffice/25.2.3.2$Linux_X86_64 LibreOffice_project/520$Build-2`. It was generated on Debian GNU/Linux 13.6 (trixie), x86-64, with:
 
@@ -87,26 +88,70 @@ The table compares the engine's retained line rectangle with Poppler's bounding 
 
 The engine raster was also visually inspected at native resolution. Text remains unclipped and non-overlapping; bold, italic, underline, paragraph indentation, and Chinese fallback are visibly present. The engine reported bounded compatibility notices for unsupported LibreOffice metadata, stylesheet, footnote, and section controls. Those notices did not alter the page dimensions, text order, or line breaks. This comparison does not claim general LibreOffice fidelity beyond this fixture.
 
+## Real LibreOffice table artifact
+
+`fixtures/real/libreoffice-24.2.7.2-table.rtf` is a real LibreOffice export whose `\generator` field is `LibreOffice/24.2.7.2$Linux_X86_64 LibreOffice_project/420$Build-2`. It was generated on Ubuntu 24.04.4 LTS, x86-64, with `libreoffice-core` 4:24.2.7-0ubuntu0.24.04.4, `libreoffice-writer` 4:24.2.7-0ubuntu0.24.04.6, `fonts-liberation` 1:2.1.5-3 and `poppler-utils` 24.02.0-1ubuntu9.9. The exact font files and hashes are in `fixtures/corpus.json`.
+
+```sh
+profile_dir=$(mktemp -d /tmp/rtf-lo-profile.XXXXXX)
+libreoffice -env:UserInstallation="file://${profile_dir}" --headless \
+  --convert-to 'rtf:Rich Text Format' --outdir /tmp \
+  fixtures/real/libreoffice-24.2-table-source.html
+mv /tmp/libreoffice-24.2-table-source.rtf fixtures/real/libreoffice-24.2.7.2-table.rtf
+libreoffice -env:UserInstallation="file://${profile_dir}" --headless \
+  --convert-to 'pdf:writer_pdf_Export' --outdir fixtures/reference \
+  fixtures/real/libreoffice-24.2.7.2-table.rtf
+pdftotext -layout fixtures/reference/libreoffice-24.2.7.2-table.pdf \
+  fixtures/reference/libreoffice-24.2.7.2-table.txt
+pdftoppm -png -r 96 fixtures/reference/libreoffice-24.2.7.2-table.pdf \
+  fixtures/reference/libreoffice-24.2.7.2-table-page
+```
+
+The document is a twelve-row, three-column bordered table on 288 × 360 pt pages with 36 pt margins, preceded by a heading and followed by one paragraph. The reference PDF is three pages. Cell boundaries are 36, 86.25, 128.25 and 266.25 pt; declared cell padding is 2.25 pt on every side; header-row borders are 0.75 pt and body borders 0.05 pt, which the engine clamps to a visible 0.25 pt.
+
+The engine was run against this file through the production-built harness with the bundled Liberation fonts. It produced three pages of 288 × 360 pt, preserved the reading order, and made the same line breaks inside cells: every line it emitted appears unbroken in Poppler's text extraction of the reference, including `A note long enough to wrap` / `inside its own cell.` and `Row 01 continues the table past` / `the first page.` The only table diagnostic reported is `unsupported-table-cell-alignment`.
+
+| Measurement                        |                            Engine |                           Reference | Delta and classification                                       |
+| ---------------------------------- | --------------------------------: | ----------------------------------: | -------------------------------------------------------------- |
+| Page count                         |                                 3 |                                   3 | equal                                                          |
+| Body cell content left edges       |            38.25 / 88.50 / 130.50 |              38.70 / 88.90 / 130.95 | +0.40 to +0.45 pt producer inset (`layout`)                    |
+| Centred header cell left edges     |          46.125 / 95.75 / 188.125 |              46.55 / 96.30 / 188.10 | same centring, within the same inset (`layout`)                |
+| Single-line row pitch              |                          23.50 pt |                            24.15 pt | -0.65 pt per row from the line box (`font`)                    |
+| Two-line note row, first text line |                          97.75 pt |                            99.69 pt | vertical centring not applied (`layout`)                       |
+| Two-line note row, `North`         |                          97.75 pt |                           105.44 pt | vertical centring not applied (`layout`)                       |
+| Row broken across pages 1 and 2    | Zone 01, after its last text line | Zone 01, between its two text lines | different break offset from the pitch delta (`layout`)         |
+| Rule across the top of page 2      |                              none |                             y 36 pt | collapsed borders leave the edge to the previous row (`paint`) |
+
+Every delta above is recorded in `fixtures/corpus.json` with its measurement and the issue that tracks it. The pitch delta accumulates: by the end of the table the engine is roughly one row ahead, so page three begins with `Zone 10` rather than `Total`. Page count, column geometry and in-cell line breaking match; vertical alignment, the producer's extra border inset and the continuation rule do not. This comparison does not claim general LibreOffice table fidelity beyond this fixture.
+
 ## Artifact hashes
 
 These SHA-256 values identify the exact committed evidence. A regenerated PDF will normally differ because LibreOffice writes creation metadata; use the geometry and content assertions above when validating a new export.
 
-| File                                                 | SHA-256                                                            |
-| ---------------------------------------------------- | ------------------------------------------------------------------ |
-| `scripts/generate-reference.py`                      | `bee7dc37570bb7e6f9d18f1cbff854d54718c9b45f4c615f19c71ad37c39a6d8` |
-| `fixtures/synthetic/automatic-pagination.rtf`        | `a0ab18dee28ec428950996d17ff90264ee1117c0c18081155863b133b1639f82` |
-| `fixtures/synthetic/common-text-styles.rtf`          | `2e5b38277d97700e4c2ccf17207b5db0c4c3f979aed5c5b4d70af9484f8ad916` |
-| `fixtures/synthetic/explicit-pages.rtf`              | `e8b1d2c5984eeeed2fba1e6a41251b25ba1fb21f7171a5495b86d6128f5ffe14` |
-| `fixtures/synthetic/indents-spacing.rtf`             | `1a8e4000ab32d3f834efcb805269ca0b4ee19766c3e1078900ab607fadda048a` |
-| `fixtures/synthetic/inline-png-jpeg.rtf`             | `a1d435caffb685306a6b164126d216c390e65275d58dcfadb7109a2a34224d0b` |
-| `fixtures/synthetic/showcase.rtf`                    | `5b95c4b96e83ae7753fe5d9d593e810ed3d6a49f6d30fa376307c3c4c519e198` |
-| `fixtures/synthetic/unicode-en-zh.rtf`               | `a74d0d972f1691466cc5d66e466c4347bc4ecc14601af63c9adb4b78103935c1` |
-| `fixtures/synthetic/assets/inline-pattern.jpg`       | `956aacee65305f533bbc1b946d2b77e1dfca714c45c1bfb2159ced90bd9883e1` |
-| `fixtures/synthetic/assets/inline-pattern.png`       | `1e0d06ba4b5c8eb9ecac3da3ba1eb641aab369a28fabb5734575d98361fc77fa` |
-| `fixtures/real/libreoffice-25.2-source.html`         | `8020b119a4cf9084fe3b1d0953e2257e71a3dc5ecb3040b22343a3b50c6417df` |
-| `fixtures/real/libreoffice-25.2.3.2.rtf`             | `5eb55a887fb0fef6efe445baf46a021e318af1abac1a938bf402090840e9c9d3` |
-| `fixtures/reference/libreoffice-25.2.3.2.pdf`        | `f63425a88eb3b54f48addb13b9e2b6003d442e3c442d46845cf7da9a1f3c515c` |
-| `fixtures/reference/libreoffice-25.2.3.2.txt`        | `5f2bab1f375c329a9fc04eb34bae4b3bb1f89fb2a4c240634621bb97319de5a6` |
-| `fixtures/reference/libreoffice-25.2.3.2-page-1.png` | `077a4b322e3bc87723033ee0bac4c630ffe46decaf57b3c9f798b214e99bf829` |
+| File                                                       | SHA-256                                                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| `scripts/generate-reference.py`                            | `d95796df732661b1376a9ce71f8ca664bc3132b461224de03571cd21e91e2338` |
+| `fixtures/synthetic/automatic-pagination.rtf`              | `a0ab18dee28ec428950996d17ff90264ee1117c0c18081155863b133b1639f82` |
+| `fixtures/synthetic/common-text-styles.rtf`                | `2e5b38277d97700e4c2ccf17207b5db0c4c3f979aed5c5b4d70af9484f8ad916` |
+| `fixtures/synthetic/explicit-pages.rtf`                    | `e8b1d2c5984eeeed2fba1e6a41251b25ba1fb21f7171a5495b86d6128f5ffe14` |
+| `fixtures/synthetic/indents-spacing.rtf`                   | `1a8e4000ab32d3f834efcb805269ca0b4ee19766c3e1078900ab607fadda048a` |
+| `fixtures/synthetic/inline-png-jpeg.rtf`                   | `a1d435caffb685306a6b164126d216c390e65275d58dcfadb7109a2a34224d0b` |
+| `fixtures/synthetic/ordinary-table.rtf`                    | `66ac0a4be1ff97861e245f0493d782f3d06e50773612865c8d0bcb5eceb9ee25` |
+| `fixtures/synthetic/showcase.rtf`                          | `5b95c4b96e83ae7753fe5d9d593e810ed3d6a49f6d30fa376307c3c4c519e198` |
+| `fixtures/synthetic/unicode-en-zh.rtf`                     | `a74d0d972f1691466cc5d66e466c4347bc4ecc14601af63c9adb4b78103935c1` |
+| `fixtures/synthetic/assets/inline-pattern.jpg`             | `956aacee65305f533bbc1b946d2b77e1dfca714c45c1bfb2159ced90bd9883e1` |
+| `fixtures/synthetic/assets/inline-pattern.png`             | `1e0d06ba4b5c8eb9ecac3da3ba1eb641aab369a28fabb5734575d98361fc77fa` |
+| `fixtures/real/libreoffice-25.2-source.html`               | `8020b119a4cf9084fe3b1d0953e2257e71a3dc5ecb3040b22343a3b50c6417df` |
+| `fixtures/real/libreoffice-25.2.3.2.rtf`                   | `5eb55a887fb0fef6efe445baf46a021e318af1abac1a938bf402090840e9c9d3` |
+| `fixtures/reference/libreoffice-25.2.3.2.pdf`              | `f63425a88eb3b54f48addb13b9e2b6003d442e3c442d46845cf7da9a1f3c515c` |
+| `fixtures/reference/libreoffice-25.2.3.2.txt`              | `5f2bab1f375c329a9fc04eb34bae4b3bb1f89fb2a4c240634621bb97319de5a6` |
+| `fixtures/reference/libreoffice-25.2.3.2-page-1.png`       | `077a4b322e3bc87723033ee0bac4c630ffe46decaf57b3c9f798b214e99bf829` |
+| `fixtures/real/libreoffice-24.2-table-source.html`         | `8c1a4272b8502ae484bcf284cd40a60c19c6e4c4172a805595dfab0e68bf8728` |
+| `fixtures/real/libreoffice-24.2.7.2-table.rtf`             | `30591ba1660f61583c23d676805181a024d4f411d3ca10d8aeed62f2c7cdc966` |
+| `fixtures/reference/libreoffice-24.2.7.2-table.pdf`        | `4ef3f8091d1e1b81f30e819d935ca1ce53d6f5169ae9202483b643f6c4907a1c` |
+| `fixtures/reference/libreoffice-24.2.7.2-table.txt`        | `62f28edfc19ed06112238c83476c20feb0ef901ea0ef4a884d089eba1518076b` |
+| `fixtures/reference/libreoffice-24.2.7.2-table-page-1.png` | `3ba02f5d16f6133b3c9d8f93c5cece45c5602efe4c99294e978282678bee7fa3` |
+| `fixtures/reference/libreoffice-24.2.7.2-table-page-2.png` | `b7c9dc3184b5a24b3de74a4b47ccda04765109371a0f584f33e02c3e9eb26946` |
+| `fixtures/reference/libreoffice-24.2.7.2-table-page-3.png` | `b2c4346c6c1ec2eaf7fc2aad2027fb46f95f0643fda6a7fe93081a0afc5c59e9` |
 
-No Microsoft Word or Apple TextEdit producer artifact is included because neither producer was available. Their compatibility remains unverified; no handcrafted fixture is labeled as either producer.
+No Microsoft Word or Apple TextEdit producer artifact is included because neither producer was available. Their compatibility remains unverified; no handcrafted fixture is labeled as either producer. See [corpus](corpus.md) for how to add one.

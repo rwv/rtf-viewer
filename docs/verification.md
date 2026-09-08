@@ -4,7 +4,9 @@ Verification has three separate purposes: understand RTF rules, preserve renderi
 
 ## Current source checks
 
-The maintenance gate passes formatting, syntax/type-aware lint, Rust fmt/clippy, 34 parser tests, contract generation checks, 25 unit/adapter tests, all four TypeScript configurations, 57 production browser cases (19 per engine), and the installed archive consumer. Two new races explicitly hold asynchronous completion across a successful relayout and verify rejection and bitmap disposal.
+`pnpm check` passes in full on Linux with Node 22.22.2, pnpm 10.33.0, Rust 1.98.1, wasm-bindgen 0.2.128, TypeScript 7.0.2, Vitest 5.0.0, Vite 8.2.2 and Playwright 1.63.0: formatting, syntax and type-aware lint, Rust fmt/clippy, 45 parser tests, contract generation checks, 40 unit/adapter/corpus tests, all four TypeScript configurations, 63 production browser cases (21 per engine), and the installed archive consumer. That run used a Node older than the pinned `.node-version`; CI runs the same gate on the pinned version.
+
+The ordinary-table slice adds 11 parser tests over row assembly, padding and border resolution and malformed row definitions; 8 geometry tests over column sums, non-overlap, padding, row heights, border rectangles and cross-page continuation; 7 corpus-manifest tests; and 2 browser cases. The synthetic table fixture asserts identical coordinates in all three engines because its exact line spacing makes every position independent of the font.
 
 Negative probes confirmed that focused Playwright/Vitest tests, floating Promises, and Node globals in browser library code are rejected. Actionlint passes. The formatting-only commit preserved canonical emitted JavaScript for all 22 affected TypeScript files.
 
@@ -37,7 +39,9 @@ Release Please v17.6.0 was exercised in an isolated clone with the actual config
 
 The committed LibreOffice 25.2.3.2 sample is compared to an independently exported PDF/PNG: page count, paper size, line text, indent coordinates and nearby-ink coverage are checked. Known metric/rasterization differences are documented in [compatibility](compatibility.md). Fixed test fonts keep this comparison reproducible.
 
-No supplied synthetic fixture currently has a known content/page failure. One LibreOffice sample is not a representative corpus. Word/TextEdit references, additional bundlers, broad complex-script behavior and maximum-size performance remain unverified. Passing the three browser suites does not imply pixel-identical output across browsers. Unsupported RTF features remain listed in the [support matrix](support-matrix.md).
+The LibreOffice 24.2.7.2 table sample is compared to its own exported PDF, Poppler text extraction and rasterised pages. The engine produces the same three pages and the same line breaks inside cells: every line it emits appears unbroken in the producer's text extraction. Cell content left edges are offset by a uniform 0.40 to 0.45 pt because the producer insets content by the cell border in addition to the declared padding. Five differences are measured and classified in `fixtures/corpus.json`, the largest being a 0.65 pt per row line-box shortfall that moves which row breaks across a page. `scripts/corpus.ts` keeps that record honest by failing when a hash, a file or a producer document stops matching the manifest.
+
+No supplied synthetic fixture currently has a known content/page failure. Two LibreOffice samples are still not a representative corpus, and both come from one application family. Word/TextEdit references, additional bundlers, broad complex-script behavior and maximum-size performance remain unverified. Merged cells, nested tables, repeated header rows, cell shading and vertical cell alignment have no layout support and are only diagnosed. Passing the three browser suites does not imply pixel-identical output across browsers. Unsupported RTF features remain listed in the [support matrix](support-matrix.md).
 
 ## v1.0.3: Issue #5 fixes
 

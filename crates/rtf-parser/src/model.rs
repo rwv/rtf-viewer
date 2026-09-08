@@ -68,6 +68,14 @@ pub enum Block {
         mark_style: TextStyle,
     },
     PageBreak,
+    /// One ordinary table row. Cells are ordered left to right and never overlap.
+    Row {
+        cells: Vec<TableCell>,
+        /// Left edge of the row in points, measured from the left page margin.
+        left: f64,
+        height: RowHeight,
+        align: RowAlign,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -166,6 +174,80 @@ impl Default for ParagraphStyle {
             page_break_before: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub enum RowAlign {
+    Left,
+    Center,
+    Right,
+}
+
+/// Row height from `\trrh`: zero is automatic, positive is a minimum, negative is exact.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", content = "value", rename_all = "camelCase")]
+#[ts(tag = "kind", content = "value", rename_all = "camelCase")]
+pub enum RowHeight {
+    Auto,
+    AtLeast(f64),
+    Exact(f64),
+}
+
+/// Border appearance as authored. Schema version 2 draws every style as a solid rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub enum BorderStyle {
+    Single,
+    Double,
+    Dotted,
+    Dashed,
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct Border {
+    /// Stroke width in points.
+    pub width: f64,
+    pub color: Option<u32>,
+    pub style: BorderStyle,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct CellBorders {
+    pub top: Option<Border>,
+    pub left: Option<Border>,
+    pub bottom: Option<Border>,
+    pub right: Option<Border>,
+}
+
+/// Resolved cell padding in points.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct Padding {
+    pub left: f64,
+    pub top: f64,
+    pub right: f64,
+    pub bottom: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct TableCell {
+    /// Right boundary in points, measured from the left page margin (`\cellx`).
+    pub right: f64,
+    /// Cell content. Schema version 2 only ever contains paragraphs.
+    pub blocks: Vec<Block>,
+    pub padding: Padding,
+    pub borders: CellBorders,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

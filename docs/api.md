@@ -38,7 +38,7 @@ try {
 
 `RtfDocument.load()` resolves only after fonts, images, and all page geometry are ready. Abort rejects with `AbortError`, terminates the dedicated parsing Worker, and releases partial resources. The default parser timeout is 30 seconds; `parseTimeoutMs` accepts 1–120,000 ms.
 
-`getPageLayout(index)` returns deeply frozen, structured-cloneable geometry. `model` exposes the frozen semantic model, including bounded embedded-image bytes. Neither value contains DOM nodes, Canvas contexts, decoded image objects, WASM pointers, or other live engine state.
+`getPageLayout(index)` returns deeply frozen, structured-cloneable geometry. A page carries `lines` and `decorations`; a decoration is a `RuleFragment`, a filled rectangle in points painted before the lines, currently used for table borders. `model` exposes the frozen semantic model, including bounded embedded-image bytes. Neither value contains DOM nodes, Canvas contexts, decoded image objects, WASM pointers, or other live engine state.
 
 ## Fonts, resolution, and lifecycle
 
@@ -107,7 +107,7 @@ A borrowed viewer rejects `load()`. An owning viewer cancels and replaces earlie
 
 The package has two JavaScript API entry points and one deployment-asset subpath:
 
-- `rtf-viewer`: runtime exports `RtfDocument`, `layoutDocument`, and `pixelSize`; type exports `CanvasTarget`, `RtfInput`, `LoadOptions`, `RenderOptions`, `PageSize`, `TextFragment`, `ImageFragment`, `Fragment`, `LineLayout`, `PageLayout`, `DocumentLayout`, `TextMetricsPt`, `LayoutServices`, `LayoutOptions`, `Diagnostic`, `DocumentModel`, and `TextStyle`.
+- `rtf-viewer`: runtime exports `RtfDocument`, `layoutDocument`, and `pixelSize`; type exports `CanvasTarget`, `RtfInput`, `LoadOptions`, `RenderOptions`, `PageSize`, `TextFragment`, `ImageFragment`, `RuleFragment`, `Fragment`, `LineLayout`, `PageLayout`, `DocumentLayout`, `TextMetricsPt`, `LayoutServices`, `LayoutOptions`, `Diagnostic`, `DocumentModel`, and `TextStyle`.
 - `rtf-viewer/viewer`: `RtfViewer`.
 - `rtf-viewer/assets/*`: access to the shipped files under `dist`, intended for hosts that must copy or address the parser Worker, wasm-bindgen module, or WASM binary explicitly.
 

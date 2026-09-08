@@ -377,6 +377,196 @@ test('rejects malformed input and image allocation bombs before browser decode',
   expect(result.bomb).toContain('budget');
 });
 
+test('ordinary table fixture keeps column geometry, borders and cross-page continuation', async ({
+  page,
+}) => {
+  const result = await page.evaluate(async () => {
+    const { RtfDocument } = window.__rtfTest;
+    await document.fonts.load('12px "Rtf Liberation Serif"');
+    const doc = await RtfDocument.load(
+      await (await fetch('/samples/ordinary-table.rtf')).arrayBuffer(),
+      { fonts: { 'Liberation Serif': 'Rtf Liberation Serif' } },
+    );
+    const describe = (index: number) => {
+      const layout = doc.getPageLayout(index);
+      return {
+        lines: layout.lines.map((line: any) => ({
+          text: line.fragments.map((fragment: any) => fragment.text ?? '').join(''),
+          x: line.x,
+          y: line.y,
+        })),
+        verticalRules: [
+          ...new Set(
+            layout.decorations
+              .filter((rule: any) => rule.height > rule.width)
+              .map((rule: any) => rule.x),
+          ),
+        ].sort((a: any, b: any) => a - b),
+        horizontalRules: [
+          ...new Set(
+            layout.decorations
+              .filter((rule: any) => rule.width > rule.height)
+              .map((rule: any) => rule.y),
+          ),
+        ].sort((a: any, b: any) => a - b),
+      };
+    };
+    const canvas = document.createElement('canvas');
+    await doc.renderPage(canvas, 0, { ppi: 144 });
+    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+    const at = (x: number, y: number) => pixels[(y * canvas.width + x) * 4];
+    const result = {
+      pages: doc.pageCount,
+      size: doc.getPageSize(0),
+      diagnostics: doc.diagnostics.map((diagnostic: any) => diagnostic.code),
+      first: describe(0),
+      second: describe(1),
+      // 1 pt border centred on the 18 pt row top covers device rows 35 and 36 at 144 PPI.
+      borderInk: at(100, 35),
+      marginPixel: at(10, 10),
+    };
+    doc.destroy();
+    return result;
+  });
+  expect(result.pages).toBe(2);
+  expect(result.size).toEqual({ width: 216, height: 216 });
+  expect(result.diagnostics).toEqual([]);
+  expect(result.first.lines.map((line) => line.text)).toEqual([
+    'Region',
+    'Units',
+    'Share',
+    'North',
+    '1200',
+    '42%',
+    'Two',
+    'lines',
+    '980',
+    '34%',
+    'Exact',
+    '700',
+    '24%',
+    'Line 1.',
+    'Line 2.',
+    'Line 3.',
+    'Line 4.',
+    'Line 5.',
+    'Line 6.',
+    'Line 7.',
+    'Right',
+    'Cell',
+  ]);
+  // Three columns inset by 3 pt of padding from the 18/78/138 pt cell boundaries.
+  expect([...new Set(result.first.lines.map((line) => line.x))].sort((a, b) => a - b)).toEqual([
+    21, 81, 141,
+  ]);
+  expect(result.first.lines.map((line) => line.y)).toEqual([
+    20, 20, 20, 36, 36, 36, 52, 64, 52, 52, 80, 80, 80, 104, 116, 128, 140, 152, 164, 176, 104, 104,
+  ]);
+  // Row edges at 18/34/50/78/102 pt; the exact 24 pt fourth row ends at 102 pt, and the
+  // last row is closed at 188 pt where it breaks.
+  expect(result.first.horizontalRules).toEqual([17.5, 33.5, 49.5, 77.5, 101.5, 187.5]);
+  // Outer 1 pt walls and 0.5 pt inner walls, each centred on its boundary.
+  expect(result.first.verticalRules).toEqual([17.5, 77.75, 137.75, 197.5]);
+  // The row continues at the top of page two and only there owns the bottom border.
+  expect(result.second.lines).toEqual([
+    { text: 'Line 8.', x: 21, y: 18 },
+    { text: 'After the table.', x: 18, y: 32 },
+  ]);
+  expect(result.second.horizontalRules).toEqual([17.5, 31.5]);
+  expect(result.second.verticalRules).toEqual([17.5, 77.75, 137.75, 197.5]);
+  expect(result.borderInk).toBeLessThan(80);
+  expect(result.marginPixel).toBe(255);
+});
+
+test('real LibreOffice table sample keeps producer column geometry and page count', async ({
+  page,
+}) => {
+  // The producer's own text extraction, not this engine's output.
+  const reference = await page.request.get('/reference/libreoffice-24.2.7.2-table.txt');
+  expect(reference.ok()).toBe(true);
+  const referenceText = (await reference.text()).replace(/\s+/g, ' ');
+  const result = await page.evaluate(async () => {
+    const { RtfDocument } = window.__rtfTest;
+    for (const face of [
+      '10px "Rtf Liberation Serif"',
+      'bold 10px "Rtf Liberation Serif"',
+      '14px "Rtf Liberation Sans"',
+      'bold 14px "Rtf Liberation Sans"',
+    ])
+      await document.fonts.load(face);
+    const doc = await RtfDocument.load(
+      await (await fetch('/samples/libreoffice-24.2.7.2-table.rtf')).arrayBuffer(),
+      {
+        fonts: {
+          'Liberation Serif': 'Rtf Liberation Serif',
+          'Liberation Sans': 'Rtf Liberation Sans',
+        },
+      },
+    );
+    const first = doc.getPageLayout(0);
+    const result = {
+      pages: doc.pageCount,
+      size: doc.getPageSize(0),
+      text: first.lines.map((line: any) =>
+        line.fragments.map((fragment: any) => fragment.text ?? '').join(''),
+      ),
+      // The heading and the centred header row are skipped; body cells share three lefts.
+      columns: [...new Set(first.lines.slice(4).map((line: any) => line.x))].sort(
+        (a: number, b: number) => a - b,
+      ),
+      headerColumns: first.lines.slice(1, 4).map((line: any) => line.x),
+      rowEdges: [
+        ...new Set(
+          first.decorations
+            .filter((rule: any) => rule.width > rule.height)
+            .map((rule: any) => rule.y),
+        ),
+      ].sort((a: number, b: number) => a - b),
+      cellWalls: [
+        ...new Set(
+          first.decorations
+            .filter((rule: any) => rule.height > rule.width)
+            .map((rule: any) => rule.x),
+        ),
+      ].sort((a: number, b: number) => a - b),
+      // The row that starts on the last line of page one continues on page two.
+      continued: doc.getPageLayout(1).decorations.filter((rule: any) => rule.width > rule.height)
+        .length,
+      tableCodes: doc.diagnostics
+        .map((diagnostic: any) => diagnostic.code)
+        .filter((code: string) => code.includes('table')),
+    };
+    doc.destroy();
+    return result;
+  });
+  expect(result.pages).toBe(3);
+  expect(result.size).toEqual({ width: 288, height: 360 });
+  expect(result.text.slice(0, 8)).toEqual([
+    'Table Reference',
+    'Region',
+    'Units',
+    'Note',
+    'North',
+    '1200',
+    'A note long enough to wrap',
+    'inside its own cell.',
+  ]);
+  // Every line the engine produced also appears, unbroken, in the producer's text export,
+  // so the wrap points inside the cells agree.
+  for (const line of result.text) expect(referenceText).toContain(line);
+  expect(result.columns).toEqual([38.25, 88.5, 130.5]);
+  // The header row is centred, so its x depends on measured advance widths. Poppler reports
+  // 46.55 / 96.30 / 188.10 pt for the same three cells in the reference PDF.
+  for (const [index, reference] of [46.55, 96.3, 188.1].entries())
+    expect(Math.abs(result.headerColumns[index] - reference)).toBeLessThan(1);
+  expect(result.rowEdges.length).toBeGreaterThanOrEqual(10);
+  // Cell walls sit on the 36 / 86.25 / 128.25 / 266.25 pt boundaries; the two sides of an
+  // inner boundary are declared with different widths, so each is centred on its own stroke.
+  expect(result.cellWalls).toEqual([35.625, 85.875, 86.125, 127.875, 128.125, 266.625]);
+  expect(result.continued).toBeGreaterThan(0);
+  expect(result.tableCodes).toEqual(['unsupported-table-cell-alignment']);
+});
+
 test('real LibreOffice sample matches independent page/text geometry and nearby ink', async ({
   page,
 }) => {

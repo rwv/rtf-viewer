@@ -51,7 +51,7 @@ export async function parseInput(input: RtfInput, options: LoadOptions): Promise
         }
         if (
           !data.model ||
-          data.model.schemaVersion !== 1 ||
+          data.model.schemaVersion !== 2 ||
           !Array.isArray(data.model.blocks) ||
           !Array.isArray(data.model.images)
         )

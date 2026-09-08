@@ -30,9 +30,9 @@ Rust resolves character and paragraph defaults and direct formatting. `plain` re
 
 Rust models derive serde and ts-rs declarations. A generator emits the complete TS model into `src/generated/model.ts`; a check regenerates and compares byte-for-byte. The Worker protocol imports that generated model. A numeric schema version protects the runtime boundary.
 
-The initial model contains page settings; font/color tables; resolved paragraph text/image runs; explicit page-break blocks; bounded embedded image bytes; diagnostics with code, message and byte offset. Paragraph-mark style is retained for empty-line metrics. RTF-specific properties stay RTF-specific. It contains neither OOXML relationship IDs nor fabricated sections/styles.
+The model contains page settings; font/color tables; resolved paragraph text/image runs; explicit page-break blocks; table rows whose cells carry a right boundary, resolved padding, resolved borders and their own paragraphs; bounded embedded image bytes; diagnostics with code, message and byte offset. Paragraph-mark style is retained for empty-line metrics. RTF-specific properties stay RTF-specific. It contains neither OOXML relationship IDs nor fabricated sections/styles.
 
-The layout result contains pages, physical page sizes, line rectangles, text fragments (font string, baseline, measured advance and decorations), and image rectangles addressed by resource ID. Geometry contains no Canvas, DOM, image object or WASM reference. Layout can be serialized and reused at any output resolution. A diagnostic records content too large for a usable page; iteration must always make progress.
+The layout result contains pages, physical page sizes, line rectangles, text fragments (font string, baseline, measured advance and decorations), image rectangles addressed by resource ID, and per-page rule rectangles for table borders that paint before the lines. Geometry contains no Canvas, DOM, image object or WASM reference. Layout can be serialized and reused at any output resolution. A diagnostic records content too large for a usable page; iteration must always make progress.
 
 ## Text and fonts
 
@@ -48,7 +48,7 @@ A font epoch is tracked from resource construction, before measurement starts. F
 
 Twips convert to points at the semantic boundary (20 twips = 1 pt); half-points convert to points for font sizes. Layout never receives scale/PPI/DPR. It accounts for usable width, first-line/hanging indents, alignment, before/after spacing, explicit line breaks and explicit pages. Lines are fragmented across pages. Every page retains its geometry, so `load()` returns a complete page count.
 
-M3 adds actual row/cell semantics, measured table fragments and row continuation policies. It must not flatten tables and call the result table support. Repeating headers, merges, nested tables and oversized rows require separate acceptance fixtures. Future section/header/footer layout needs additional stories and per-section page settings, not paint-time special cases.
+M3 added actual row/cell semantics, measured table fragments and row continuation: a row that does not fit is cut at the lowest line bottom that still fits, so no line straddles a page edge, and each fragment is drawn as a closed box. Line breaking runs per paragraph in a column and is placed afterwards, so page flow and cell content share one breaker. Repeating headers, merges, nested tables, cell shading and vertical cell alignment keep their fallbacks and require separate acceptance fixtures before any claim. Future section/header/footer layout needs additional stories and per-section page settings, not paint-time special cases.
 
 ## API and ownership (implemented)
 
