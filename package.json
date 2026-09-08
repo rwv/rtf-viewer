@@ -4,24 +4,22 @@
   "type": "module",
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": ">=22.12"
+    "node": ">=24.13.0"
   },
   "scripts": {
-    "build:wasm": "node scripts/build-wasm.mjs",
-    "generate:types": "node scripts/generate-types.mjs",
-    "check:contract": "node scripts/generate-types.mjs --check",
-    "build:lib": "pnpm build:wasm && node scripts/build-lib.mjs && tsc -p packages/rtf-viewer/tsconfig.build.json",
+    "build:wasm": "cargo build --locked -p rtf-parser --release --target wasm32-unknown-unknown && wasm-bindgen target/wasm32-unknown-unknown/release/rtf_parser.wasm --target web --out-dir packages/rtf-viewer/.wasm --out-name rtf_parser",
+    "generate:types": "cargo run --locked --quiet -p rtf-parser --example generate_types -- --write",
+    "check:contract": "cargo run --locked --quiet -p rtf-parser --example generate_types -- --check",
+    "build:lib": "pnpm build:wasm && node scripts/build.ts && tsc -p packages/rtf-viewer/tsconfig.build.json",
     "build": "pnpm build:lib && pnpm --filter @rtf-viewer/example build",
     "dev": "pnpm build:lib && pnpm --filter @rtf-viewer/example dev --host 127.0.0.1",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.tools.json && tsc -p tsconfig.worker.json",
     "test": "vitest run",
-    "test:rust": "node scripts/cargo.mjs test --workspace --locked",
+    "test:rust": "cargo test --workspace --locked",
     "test:browser": "playwright test",
-    "test:package": "node scripts/test-package.mjs",
-    "test:release": "node --test scripts/release.test.mjs",
-    "pack": "node scripts/package.mjs",
-    "release:check": "node scripts/release-info.mjs",
-    "check": "pnpm test:rust && pnpm check:contract && pnpm test && pnpm test:release && pnpm build && pnpm typecheck && pnpm test:browser && pnpm test:package"
+    "test:package": "playwright test --config playwright.package.config.ts",
+    "check": "pnpm test:rust && pnpm check:contract && pnpm test && pnpm build && pnpm typecheck && pnpm test:browser && pnpm test:package",
+    "pack:lib": "pnpm --dir packages/rtf-viewer pack --out ../../artifacts/rtf-viewer.tgz"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
@@ -30,5 +28,6 @@
     "typescript": "6.0.2",
     "vite": "8.2.2",
     "vitest": "4.1.4"
-  }
+  },
+  "version": "1.0.1"
 }

@@ -45,6 +45,14 @@ describe('retained point geometry', () => {
     const hanging = await layoutDocument(model([paragraph('abc def ghi jkl', { leftIndent: 10, firstLineIndent: -5 })], 45, 100), services);
     expect(hanging.pages[0].lines.map((l) => l.x)).toEqual([15, 20]);
   });
+  it('recomputes a wrapped tab from the continuation-line indent', async () => {
+    const layout = await layoutDocument(model([paragraph('abc\tz', { leftIndent: 3 })], 19, 100), services);
+    const lines = layout.pages[0].lines;
+    expect(lines.map(textOf)).toEqual(['abc', ' z']);
+    expect(lines[1]).toMatchObject({ x: 13, width: 12 });
+    expect(lines[1].fragments.map((fragment) => ({ x: fragment.x, width: fragment.width })))
+      .toEqual([{ x: 13, width: 7 }, { x: 20, width: 5 }]);
+  });
   it('centers, right-aligns and expands justification using retained advances', async () => {
     const centered = await layoutDocument(model([paragraph('abc', { align: 'center' })]), services);
     expect(centered.pages[0].lines[0].x).toBe(27.5);

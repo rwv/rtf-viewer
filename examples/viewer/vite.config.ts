@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 
@@ -9,8 +9,10 @@ function copySamples(): Plugin {
       const syntheticDirectory = fileURLToPath(new URL('../../fixtures/synthetic', import.meta.url));
       const realDirectory = fileURLToPath(new URL('../../fixtures/real', import.meta.url));
       const outputDirectory = fileURLToPath(new URL('./public/samples', import.meta.url));
+      rmSync(outputDirectory, { recursive: true, force: true });
       mkdirSync(outputDirectory, { recursive: true });
       const referenceDirectory = fileURLToPath(new URL('./public/reference', import.meta.url));
+      rmSync(referenceDirectory, { recursive: true, force: true });
       mkdirSync(referenceDirectory, { recursive: true });
       copyFileSync(fileURLToPath(new URL('../../fixtures/reference/libreoffice-25.2.3.2-page-1.png', import.meta.url)), `${referenceDirectory}/libreoffice-25.2.3.2-page-1.png`);
       for (const directory of [syntheticDirectory, realDirectory]) {

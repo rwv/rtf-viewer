@@ -20,15 +20,9 @@ The long-term target is a specification-backed browser viewer with steadily impr
 | M7 | Serializable layout | Worker font/layout/paint, progressive layout | Main/Worker parity, cancellation and memory measurements | Planned |
 | Later | Evidence-driven | Math and other advanced content | Separate model, renderer and compatibility gates | Planned |
 
-## Initial execution order (completed baseline)
+## Maintenance foundation
 
-1. Finish source/spec research and runnable reuse prototype.
-2. Write design first, then build the Rust model/parser and generated contract.
-3. Build deterministic point-based paragraph layout and Canvas paint.
-4. Prove browser loading, automatic pagination and per-page bitmap export.
-5. Add independent LibreOffice-produced reference fixture if the installed producer is usable.
-6. Pack and install into an isolated application; test its production output.
-7. Reconcile documentation with measured results and record remaining failures.
+The repository uses Release Please for release preparation, environment-scoped GitHub credentials for the release bot, and npm OIDC for publication. A pinned upstream source import replaces the initial image-helper copy; Dependabot proposes submodule and dependency updates for review. Build and browser/package checks run before merging those updates. The [release procedure](releasing.md) and [reuse evaluation](reuse-evaluation.md) describe the boundaries.
 
 ## M3 boundaries that must be explicit
 

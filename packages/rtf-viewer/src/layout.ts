@@ -187,9 +187,12 @@ export async function layoutDocument(model: DocumentModel, services: LayoutServi
       forcedEnding = false;
       if (token.kind === 'tab') {
         const tab = model.defaultTab > 0 ? model.defaultTab : 36;
-        const position = lineX() - p.marginLeft + width;
-        let advance = tab - ((position % tab) + tab) % tab;
-        if (width + advance > available() && parts.length > 0) { emit(false); advance = tab; }
+        const tabAdvance = () => {
+          const position = lineX() - p.marginLeft + width;
+          return tab - ((position % tab) + tab) % tab;
+        };
+        let advance = tabAdvance();
+        if (width + advance > available() && parts.length > 0) { emit(false); advance = tabAdvance(); }
         const tabStyle = block.markStyle;
         parts.push({ kind: 'text', part: { text: ' ', style: tabStyle }, width: advance, ascent: mark.ascent, descent: mark.descent });
         width += advance;

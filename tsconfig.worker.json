@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "WebWorker"],
+    "types": [],
+    "rootDirs": [
+      "packages/rtf-viewer/src",
+      "packages/rtf-viewer/.wasm"
+    ],
+    "noEmit": true
+  },
+  "files": ["packages/rtf-viewer/src/parser.worker.ts"],
+  "include": []
+}

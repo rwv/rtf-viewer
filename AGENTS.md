@@ -17,3 +17,6 @@
 - Self-rendered snapshots catch regressions only. Fidelity claims need specification assertions or independently generated reference outputs with version/font provenance. Never blindly update snapshots.
 - Update README, roadmap and support matrix when behavior changes. Label proposals clearly. Do not claim unsupported or untested behavior as verified.
 - Reused code needs its license, source path, fixed upstream commit, local change record and focused tests. No uncommitted submodule patches or runtime dependency on a developer checkout.
+- Keep upstream source unmodified in its pinned submodule. Put RTF policy in the local adapter; test upstream updates through the complete package/browser gate. Never install or build the upstream workspace as part of this project's build.
+- Prefer standard Cargo, pnpm, npm, GitHub CLI and Release Please commands to custom orchestration. Project build/release Node code must be TypeScript and included in type checking; historical isolated experiments are not production tooling.
+- Use Conventional Commit PR titles and squash merges. Release Please owns npm/workspace versions, changelog, tags and GitHub Releases; normal releases do not require manual version edits or tags. The unpublished Rust crate version is independent.
