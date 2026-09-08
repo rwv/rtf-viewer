@@ -1,15 +1,25 @@
 import { test, expect } from '@playwright/test';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
 import { preview, type PreviewServer } from 'vite';
 
-test('the packed npm package works in an isolated production application', async ({ page }) => {
+const exec = promisify(execFile);
+const commandOptions = {
+  timeout: 60_000,
+  killSignal: 'SIGKILL' as const,
+  maxBuffer: 4 * 1024 * 1024,
+};
+const registryVersion = process.env.RTF_REGISTRY_VERSION;
+const registry = 'https://registry.npmjs.org/';
+
+test('the npm package works in an isolated production application', async ({ page }) => {
   const artifacts = resolve('artifacts');
   const filename = 'rtf-viewer.tgz';
-  const archive = join(artifacts, filename);
+  let archive = join(artifacts, filename);
   const pkg = JSON.parse(await readFile('packages/rtf-viewer/package.json', 'utf8')) as {
     name: string;
     version: string;
@@ -19,33 +29,83 @@ test('the packed npm package works in an isolated production application', async
   };
   await mkdir(artifacts, { recursive: true });
   // Remove stale passing evidence before packing or running any assertions.
-  for (const file of ['SHA256SUMS', 'package-manifest.json', 'package-verification.json']) {
+  for (const file of registryVersion
+    ? ['registry-verification.json']
+    : ['SHA256SUMS', 'package-manifest.json', 'package-verification.json']) {
     await rm(join(artifacts, file), { force: true });
   }
-  execFileSync('pnpm', ['pack:lib'], { stdio: 'inherit' });
-  const bytes = await readFile(archive);
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
-  const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
   const temp = await mkdtemp(join(tmpdir(), 'rtf-viewer-consumer-'));
   let server: PreviewServer | undefined;
   try {
+    if (registryVersion) {
+      expect(registryVersion).toBe(pkg.version);
+      expect(process.env.RTF_REGISTRY_INTEGRITY).toMatch(/^sha512-/);
+      const { stdout } = await exec(
+        'npm',
+        ['view', `${pkg.name}@${registryVersion}`, 'dist', '--json', '--registry', registry],
+        commandOptions,
+      );
+      const dist = JSON.parse(stdout) as {
+        integrity: string;
+        attestations?: { provenance?: { predicateType: string } };
+      };
+      expect(dist.integrity).toBe(process.env.RTF_REGISTRY_INTEGRITY);
+      expect(dist.attestations?.provenance?.predicateType).toBe('https://slsa.dev/provenance/v1');
+      const packed = await exec(
+        'npm',
+        [
+          'pack',
+          `${pkg.name}@${registryVersion}`,
+          '--ignore-scripts',
+          '--json',
+          '--registry',
+          registry,
+          '--pack-destination',
+          temp,
+        ],
+        commandOptions,
+      );
+      const entries = JSON.parse(packed.stdout) as { filename: string }[];
+      expect(entries).toHaveLength(1);
+      expect(entries[0].filename).toBe(`${pkg.name}-${pkg.version}.tgz`);
+      archive = join(temp, entries[0].filename);
+    } else {
+      await exec('pnpm', ['pack:lib'], commandOptions);
+    }
+    const bytes = await readFile(archive);
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+    if (registryVersion) expect(integrity).toBe(process.env.RTF_REGISTRY_INTEGRITY);
     await writeFile(
       join(temp, 'package.json'),
       JSON.stringify({ name: 'rtf-viewer-consumer', private: true, type: 'module' }),
     );
-    execFileSync(
+    await exec(
       'npm',
       [
         'install',
         '--ignore-scripts',
         '--no-audit',
         '--no-fund',
-        archive,
+        '--registry',
+        registry,
+        registryVersion ? `${pkg.name}@${registryVersion}` : archive,
         `vite@${tools.devDependencies.vite}`,
         `typescript@${tools.devDependencies.typescript}`,
       ],
-      { cwd: temp, stdio: 'inherit' },
+      { ...commandOptions, cwd: temp },
     );
+    if (registryVersion) {
+      const lock = JSON.parse(await readFile(join(temp, 'package-lock.json'), 'utf8')) as {
+        packages: Record<string, { integrity?: string }>;
+      };
+      expect(lock.packages[`node_modules/${pkg.name}`].integrity).toBe(integrity);
+      // npm verifies registry signatures and any provenance attestations, not just their presence.
+      await exec('npm', ['audit', 'signatures', '--registry', registry], {
+        ...commandOptions,
+        cwd: temp,
+      });
+    }
     const installedRoot = join(temp, 'node_modules', pkg.name);
     const installed = JSON.parse(await readFile(join(installedRoot, 'package.json'), 'utf8')) as {
       name: string;
@@ -58,7 +118,9 @@ test('the packed npm package works in an isolated production application', async
       if ((await stat(join(installedRoot, file))).isFile()) files.push(file.replaceAll('\\', '/'));
     }
     for (const file of ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md']) {
-      expect(await readFile(join(installedRoot, file), 'utf8')).toBe(await readFile(file, 'utf8'));
+      const contents = await readFile(join(installedRoot, file), 'utf8');
+      expect(contents.length).toBeGreaterThan(0);
+      if (!registryVersion) expect(contents).toBe(await readFile(file, 'utf8'));
     }
     for (const file of [
       'dist/index.js',
@@ -106,8 +168,8 @@ test('the packed npm package works in an isolated production application', async
       if (['.js', '.wasm'].includes(extname(file)))
         await copyFile(join(installedDist, file), join(manualAssets, file));
     }
-    execFileSync('npm', ['exec', '--', 'tsc'], { cwd: temp, stdio: 'inherit' });
-    execFileSync('npm', ['exec', '--', 'vite', 'build'], { cwd: temp, stdio: 'inherit' });
+    await exec('npm', ['exec', '--', 'tsc'], { ...commandOptions, cwd: temp });
+    await exec('npm', ['exec', '--', 'vite', 'build'], { ...commandOptions, cwd: temp });
     server = await preview({
       root: temp,
       configFile: false,
@@ -116,6 +178,7 @@ test('the packed npm package works in an isolated production application', async
     });
     const failures: string[] = [];
     const resources: string[] = [];
+    page.on('pageerror', (error) => failures.push(error.message));
     page.on('requestfailed', (request) =>
       failures.push(`${request.url()}: ${request.failure()?.errorText}`),
     );
@@ -162,20 +225,30 @@ test('the packed npm package works in an isolated production application', async
       version: pkg.version,
       filename,
       sha256,
+      integrity,
+      source: registryVersion ? 'npm' : 'archive',
+      signaturesVerified: !!registryVersion,
       base: '/viewer/',
       result,
       failures,
       assets,
     };
-    await writeFile(
-      join(artifacts, 'package-manifest.json'),
-      JSON.stringify(manifest, null, 2) + '\n',
-    );
-    await writeFile(
-      join(artifacts, 'package-verification.json'),
-      JSON.stringify(report, null, 2) + '\n',
-    );
-    await writeFile(join(artifacts, 'SHA256SUMS'), `${sha256}  ${filename}\n`);
+    if (registryVersion) {
+      await writeFile(
+        join(artifacts, 'registry-verification.json'),
+        JSON.stringify(report, null, 2) + '\n',
+      );
+    } else {
+      await writeFile(
+        join(artifacts, 'package-manifest.json'),
+        JSON.stringify(manifest, null, 2) + '\n',
+      );
+      await writeFile(
+        join(artifacts, 'package-verification.json'),
+        JSON.stringify(report, null, 2) + '\n',
+      );
+      await writeFile(join(artifacts, 'SHA256SUMS'), `${sha256}  ${filename}\n`);
+    }
   } finally {
     await page.goto('about:blank').catch(() => undefined);
     await server?.close();

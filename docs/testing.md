@@ -61,3 +61,5 @@ Use `pnpm generate:types` after model changes; `pnpm check:contract` must pass b
 ## Engineering gate
 
 `pnpm check` also runs Prettier, selected Oxlint correctness/Promise rules, Rust fmt/clippy, and all four TypeScript configurations. `quality` runs formatting, syntax lint, workflow validation and PR title validation before browser setup; `verify` runs the full gate. Both Playwright configurations and Vitest reject focused tests in CI. See [CONTRIBUTING.md](../CONTRIBUTING.md) for commands and generated/upstream exclusions.
+
+The package consumer also runs after publication against the exact npm version and tested integrity, including npm signature/provenance verification. Archive and registry modes share the same geometry, declaration and resource-loading assertions. Every install/build subprocess is asynchronous with a 60-second timeout; runtime page errors fail the test. See [release verification](releasing.md#postpublication-verification).

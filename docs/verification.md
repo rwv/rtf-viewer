@@ -4,6 +4,14 @@ Verification has three separate purposes: understand RTF rules, preserve renderi
 
 ## Current source checks
 
+The maintenance gate passes formatting, syntax/type-aware lint, Rust fmt/clippy, 34 parser tests, contract generation checks, 25 unit/adapter tests, all four TypeScript configurations, 57 production browser cases (19 per engine), and the installed archive consumer. Two new races explicitly hold asynchronous completion across a successful relayout and verify rejection and bitmap disposal.
+
+Negative probes confirmed that focused Playwright/Vitest tests, floating Promises, and Node globals in browser library code are rejected. Actionlint passes. The formatting-only commit preserved canonical emitted JavaScript for all 22 affected TypeScript files.
+
+The shared registry consumer was exercised against the existing 1.0.3 package: its downloaded SHA-256 matched `6d1804cdd3735744efa8c7857cc7ccf1bc10e42cf7f59aa258ddff45f4f7dd9b`, npm signature/provenance verification passed, and declaration compilation plus production rendering passed. Each subsequent release records its own registry outcome in `registry-verification.json`; this prototype does not claim a future package has already passed.
+
+## Version 1.0.3 source checks
+
 The issue #5 fixes passed `pnpm check` locally on Linux with Node 24.13.0, pnpm 10.33.0, Rust 1.98.1, wasm-bindgen 0.2.128, TypeScript 7.0.2, Vitest 5.0.0, Vite 8.2.2 and Playwright 1.63.0. These checks cover the fixes introduced in 1.0.3; the 1.0.2 package does not contain them.
 
 | Check                           | Result                                                                                                                                                  |
