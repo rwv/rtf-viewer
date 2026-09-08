@@ -1,6 +1,6 @@
 [package]
 name = "rtf-parser"
-version = "1.0.0"
+version = "1.0.1"
 publish = false
 repository = "https://github.com/rwv/rtf-viewer"
 edition.workspace = true

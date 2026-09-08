@@ -1,6 +1,6 @@
 # Verification record
 
-This page records the local v1.0.0 verification on 7 September 2026 and the earlier implementation baseline. Remote runs are recorded separately in [GitHub Actions](https://github.com/rwv/rtf-viewer/actions); registry publication is a separate step.
+This page records the local and release evidence for v1.0.0 on 7 September 2026, plus the earlier implementation baseline. Remote runs are recorded separately in [GitHub Actions](https://github.com/rwv/rtf-viewer/actions).
 
 Environment: Linux x86-64; Node 24.13.0; pnpm 10.33.0; Rust 1.98.1; wasm-bindgen CLI/crate 0.2.128; TypeScript 6.0.2; Vite 8.2.2; Vitest 4.1.4; Playwright 1.63.0 with its Chromium. Dependencies are pinned/locked; current official tooling documentation was checked during design rather than copying the upstream workspace wholesale. The chosen TypeScript/Vitest/esbuild versions are tested pins, not a claim to be the newest registry versions.
 
@@ -38,6 +38,8 @@ The combined gate is `pnpm check`. The [first remote Verify run](https://github.
 
 The v1.0.0 run of `pnpm check` completed with exit code 0. Its separate consumer installed `rtf-viewer-1.0.0.tgz` through `npm install --ignore-scripts` and rendered at the `/viewer/` deployment base. Both bundled asset discovery and explicit URLs to copies of the installed Worker/WASM passed; the report contains no request failures. The output retained two pages with 15 and 9 lines and produced the expected 432-pixel bitmap.
 
+The [v1.0.0 GitHub Release](https://github.com/rwv/rtf-viewer/releases/tag/v1.0.0) produced the first public archive. npm owner `seedgou` then created `rtf-viewer@1.0.0` with login and two-factor authentication using those exact release bytes. Their SHA-256 is `902acb83768fbe3b8aeec845cd0d0cec2bebdc49fa69748b502a4fcc6a55b7d0`. This was the one-time registry bootstrap; it did not use a repository or GitHub Actions token.
+
 The final local v1 archive is 222,463 bytes. Its consumer build emits 22,426 bytes application JS, a 2,671-byte Worker, and 307,941 bytes WASM. `artifacts/package-manifest.json`, `artifacts/SHA256SUMS`, and `artifacts/package-verification.json` tie the tested archive to its checksum; `artifacts/v1-verification.log` records the successful full check after the development dependency fixes. The README-only adjustment was also rebuilt and its tarball consumer rerun successfully in `artifacts/v1-package-final.log`. The release workflow rebuilds from the tag and publishes its own verified archive and measurements, which are authoritative for the downloadable release. Sizes are raw measurements of the named build, not universal bundle promises.
 
 ### Earlier implementation evidence
@@ -54,4 +56,4 @@ No supplied synthetic fixture currently has a known content/page failure. The re
 
 True list numbering, table geometry, stylesheet inheritance, headers/footers, notes, section-specific pages, vector image drawing and full complex-script typography remain outside the v1 rendering baseline. Font coverage across operating systems, Firefox/WebKit, other consumer bundlers and maximum-size performance remain unverified. WMF/EMF recognition retains placeholder geometry and diagnostics; the concrete rtf.js reuse experiment is documented separately.
 
-Remote CI, GitHub Release creation, and npm availability are separate release results and are not asserted by this local record. See the [release procedure](releasing.md) for those gates.
+Version 1.0.1 changes release documentation and package metadata only. Its npm trusted-publisher registration is complete and binds package `rtf-viewer` to `rwv/rtf-viewer`, workflow `release.yml`, and GitHub Environment `npm`, with direct publication allowed. The GitHub environment admits branch `main` and tags matching `v*`, has no required reviewers or secrets, and the repository variable `NPM_TRUSTED_PUBLISHING` enables the publish job. Its first end-to-end GitHub Actions OIDC publication result is pending and is not asserted in this record. See the [release procedure](releasing.md) for the trust relationship and post-release checks.
