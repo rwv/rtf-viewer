@@ -929,6 +929,166 @@ fn malformed_binary_and_groups_fail_predictably() {
     ));
 }
 
+/// Build an EMF holding one EMR_STRETCHDIBITS record around the supplied DIB.
+fn emf_with_dib(info: &[u8], bits: &[u8]) -> Vec<u8> {
+    let header_size = 88u32;
+    let record_header = 80u32;
+    let record_size = record_header + info.len() as u32 + bits.len() as u32;
+    let mut emf = Vec::new();
+    // EMR_HEADER: type, size, then padding up to the declared header size.
+    emf.extend_from_slice(&1u32.to_le_bytes());
+    emf.extend_from_slice(&header_size.to_le_bytes());
+    emf.resize(header_size as usize, 0);
+    emf.extend_from_slice(&81u32.to_le_bytes());
+    emf.extend_from_slice(&record_size.to_le_bytes());
+    // offBmiSrc, cbBmiSrc, offBitsSrc and cbBitsSrc sit at offset 48 in EMR_STRETCHDIBITS.
+    emf.resize(header_size as usize + 48, 0);
+    emf.extend_from_slice(&record_header.to_le_bytes());
+    emf.extend_from_slice(&(info.len() as u32).to_le_bytes());
+    emf.extend_from_slice(&(record_header + info.len() as u32).to_le_bytes());
+    emf.extend_from_slice(&(bits.len() as u32).to_le_bytes());
+    // The bitmap buffer starts at the end of the record's fixed fields.
+    emf.resize(header_size as usize + record_header as usize, 0);
+    emf.extend_from_slice(info);
+    emf.extend_from_slice(bits);
+    emf
+}
+
+fn bitmap_info(width: i32, height: i32, bits_per_pixel: u16, compression: u32) -> Vec<u8> {
+    let mut info = Vec::new();
+    info.extend_from_slice(&40u32.to_le_bytes());
+    info.extend_from_slice(&width.to_le_bytes());
+    info.extend_from_slice(&height.to_le_bytes());
+    info.extend_from_slice(&1u16.to_le_bytes());
+    info.extend_from_slice(&bits_per_pixel.to_le_bytes());
+    info.extend_from_slice(&compression.to_le_bytes());
+    info.resize(40, 0);
+    info
+}
+
+fn document_with_metafile(metafile: &[u8]) -> rtf_parser::DocumentModel {
+    let hex: String = metafile.iter().map(|byte| format!("{byte:02x}")).collect();
+    model(
+        format!("{{\\rtf1{{\\pict\\emfblip\\picw10\\pich10\\picwgoal720\\pichgoal720 {hex}}}}}")
+            .as_bytes(),
+    )
+}
+
+fn raster_of(document: &rtf_parser::DocumentModel) -> Option<&rtf_parser::RasterBitmap> {
+    document.images.first()?.raster.as_ref()
+}
+
+#[test]
+fn a_metafile_blit_is_decoded_into_a_drawable_bitmap() {
+    // Two by two, 24 bit, bottom-up, with each row padded to a four-byte boundary.
+    let info = bitmap_info(2, 2, 24, 0);
+    let bits = vec![
+        0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0x00, 0x00, // bottom row: red, green
+        0xff, 0x00, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, // top row: blue, white
+    ];
+    let document = document_with_metafile(&emf_with_dib(&info, &bits));
+    let raster = raster_of(&document).expect("the blit should decode");
+    assert_eq!((raster.width, raster.height), (2, 2));
+    // Rows come back top first, and each pixel is RGBA with blue-first source order undone.
+    assert_eq!(
+        raster.data,
+        vec![
+            0, 0, 255, 255, 255, 255, 255, 255, // top row
+            255, 0, 0, 255, 0, 255, 0, 255, // bottom row
+        ]
+    );
+    assert!(
+        document
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "approximated-metafile-bitmap")
+    );
+}
+
+#[test]
+fn a_top_down_and_palette_blit_decode_the_same_way() {
+    // Negative height means the rows are already stored top first.
+    let info = bitmap_info(2, -1, 24, 0);
+    let bits = vec![0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0x00, 0x00];
+    let document = document_with_metafile(&emf_with_dib(&info, &bits));
+    let raster = raster_of(&document).expect("the blit should decode");
+    assert_eq!(raster.data, vec![255, 0, 0, 255, 0, 255, 0, 255]);
+
+    // Eight bit indices resolve through the palette, which is stored blue first.
+    let mut palette_info = bitmap_info(2, -1, 8, 0);
+    palette_info.extend_from_slice(&[0x10, 0x20, 0x30, 0x00, 0x40, 0x50, 0x60, 0x00]);
+    for _ in 2..256 {
+        palette_info.extend_from_slice(&[0, 0, 0, 0]);
+    }
+    let document = document_with_metafile(&emf_with_dib(&palette_info, &[1, 0, 0, 0]));
+    let raster = raster_of(&document).expect("the palette blit should decode");
+    assert_eq!(
+        raster.data,
+        vec![0x60, 0x50, 0x40, 255, 0x30, 0x20, 0x10, 255]
+    );
+}
+
+#[test]
+fn undecodable_metafiles_keep_the_placeholder_and_say_why() {
+    // A compressed DIB is rejected rather than guessed at.
+    let compressed = document_with_metafile(&emf_with_dib(&bitmap_info(2, 2, 8, 1), &[0; 64]));
+    assert!(raster_of(&compressed).is_none());
+    assert!(
+        compressed
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "unsupported-vector-image")
+    );
+
+    // A metafile with no blit at all keeps its bytes and its placeholder.
+    let mut empty = Vec::new();
+    empty.extend_from_slice(&1u32.to_le_bytes());
+    empty.extend_from_slice(&88u32.to_le_bytes());
+    empty.resize(88, 0);
+    let bare = document_with_metafile(&empty);
+    assert!(raster_of(&bare).is_none());
+    assert_eq!(bare.images[0].format, ImageFormat::Emf);
+    assert!(!bare.images[0].data.is_empty());
+}
+
+#[test]
+fn an_oversized_metafile_bitmap_is_refused_rather_than_allocated() {
+    // The header claims far more pixels than the record could possibly carry.
+    let document =
+        document_with_metafile(&emf_with_dib(&bitmap_info(30_000, 30_000, 24, 0), &[0; 16]));
+    assert!(raster_of(&document).is_none());
+    assert!(
+        document
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "unsupported-vector-image")
+    );
+}
+
+#[test]
+fn a_blit_whose_offsets_do_not_fit_is_refused_rather_than_overflowing() {
+    // offBitsSrc and cbBitsSrc that sum past u32 must fail the lookup, not the addition.
+    let mut emf = Vec::new();
+    emf.extend_from_slice(&1u32.to_le_bytes());
+    emf.extend_from_slice(&88u32.to_le_bytes());
+    emf.resize(88, 0);
+    emf.extend_from_slice(&81u32.to_le_bytes());
+    emf.extend_from_slice(&120u32.to_le_bytes());
+    emf.resize(88 + 48, 0);
+    for value in [u32::MAX, 64u32, u32::MAX - 8, 64u32] {
+        emf.extend_from_slice(&value.to_le_bytes());
+    }
+    emf.resize(88 + 120, 0);
+    let document = document_with_metafile(&emf);
+    assert!(raster_of(&document).is_none());
+    assert!(
+        document
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "unsupported-vector-image")
+    );
+}
+
 #[test]
 fn arbitrary_bounded_byte_streams_never_panic() {
     let mut seed = 0x9e37_79b9_u32;

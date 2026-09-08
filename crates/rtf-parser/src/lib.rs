@@ -1,3 +1,4 @@
+mod metafile;
 mod model;
 mod parser;
 

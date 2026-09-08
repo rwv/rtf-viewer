@@ -351,7 +351,8 @@
         "wmf-picture",
         "embedded-emf-comment-records",
         "picture-goal-dimensions",
-        "vector-image-diagnostic"
+        "vector-image-diagnostic",
+        "metafile-embedded-dib"
       ],
       "artifacts": [
         {
@@ -425,11 +426,11 @@
       ],
       "deltas": [
         {
-          "id": "lo-2427-metafile-not-drawn",
+          "id": "lo-2427-metafile-raster-approximation",
           "classification": "paint",
-          "summary": "The engine retains the metafile and draws a visible placeholder in the right rectangle; the producer draws the artwork.",
-          "measured": "The reference page has 10,556 non-white pixels in the picture area, dominated by the source colours #e6eef8, #205493 and #8a1f11. The engine retains 72,992 WMF bytes and an 89.84 x 59.54 pt rectangle and reports unsupported-vector-image.",
-          "status": "open",
+          "summary": "The engine draws the bitmap the producer embedded in the metafile, scaled into the picture rectangle, instead of replaying the metafile's blits at page resolution.",
+          "measured": "The 121 x 81 embedded DIB is scaled into the 89.84 x 59.54 pt rectangle. Counting coloured pixels over the white page at 96 ppi, the engine draws 10,177 against the reference's 10,384, a 2.0 percent difference. The placeholder this document used to get is gone.",
+          "status": "accepted",
           "issue": 33
         },
         {

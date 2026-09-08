@@ -98,6 +98,8 @@ Upstream commit updates use the same complete CI gate. The Git submodule is init
 
 The independent visual test compares the actual LibreOffice-generated reference PNG with engine ink using a documented four-pixel neighborhood at 96 PPI, paired with exact line text, page count, physical size and indent assertions. It is a tolerant regression check for one known producer document, not a general fidelity score. No project-generated image is used as its own correctness oracle.
 
+The metafile test is the same shape: it counts coloured pixels in the engine's page and in the producer's own rendering of the same document and requires the two to be within the same order of magnitude, because the engine scales a 121 × 81 embedded bitmap while the producer rasterised at its own resolution. Pixel equality would be the wrong assertion there, and a snapshot of the engine's own drawing would prove nothing about the producer.
+
 Use `pnpm generate:types` after model changes; `pnpm check:contract` must pass before committing. Test outputs, screenshots, packed archives and size measurements are written to ignored `artifacts/` or `test-results/`. Reference generation needs LibreOffice/Pillow/Poppler but ordinary CI consumes the committed licensed artifacts and does not require those tools.
 
 ## Engineering gate

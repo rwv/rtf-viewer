@@ -1,7 +1,8 @@
 use crate::model::{
     Block, Border, BorderStyle, CellBorders, CellShading, Diagnostic, DocumentModel, FontDef,
     ImageFormat, ImageResource, LevelFollow, LineSpacing, ListMarker, Padding, PageGeometry,
-    ParagraphAlign, ParagraphStyle, RowAlign, RowHeight, Run, TableCell, TextStyle, VerticalAlign,
+    ParagraphAlign, ParagraphStyle, RasterBitmap, RowAlign, RowHeight, Run, TableCell, TextStyle,
+    VerticalAlign,
 };
 use encoding_rs::Encoding;
 use std::collections::{HashMap, HashSet};
@@ -1652,12 +1653,39 @@ impl<'a> Parser<'a> {
                 picture.start_offset,
             );
         }
+        let mut raster = None;
         if matches!(picture.format, ImageFormat::Wmf | ImageFormat::Emf) {
-            self.diagnostic(
-                "unsupported-vector-image",
-                "WMF/EMF data was preserved but cannot be rendered by the initial browser viewer",
-                picture.start_offset,
-            );
+            match crate::metafile::extract_bitmap(&picture.data, picture.format == ImageFormat::Emf)
+            {
+                Ok(bitmap) => {
+                    // Producers that rasterise a drawing write it as a mask and an image blit.
+                    // The bitmap is drawn without applying the raster operations, so say so.
+                    self.diagnostic(
+                        "approximated-metafile-bitmap",
+                        "A bitmap embedded in the metafile was drawn; its raster operations, \
+                         clipping and any vector records were not applied",
+                        picture.start_offset,
+                    );
+                    raster = Some(RasterBitmap {
+                        width: bitmap.width,
+                        height: bitmap.height,
+                        data: bitmap.rgba,
+                    });
+                }
+                Err(reason) => self.diagnostic(
+                    "unsupported-vector-image",
+                    match reason {
+                        crate::metafile::Rejection::NoBitmap => {
+                            "Metafile data was preserved; it carries no embedded bitmap to draw"
+                        }
+                        crate::metafile::Rejection::UnsupportedBitmap => {
+                            "Metafile data was preserved; its embedded bitmap uses a compression \
+                             or header this decoder does not read"
+                        }
+                    },
+                    picture.start_offset,
+                ),
+            }
         }
         if picture.format == ImageFormat::Unknown {
             self.diagnostic(
@@ -1685,6 +1713,7 @@ impl<'a> Parser<'a> {
             data: picture.data,
             width,
             height,
+            raster,
         });
         self.flush_all_text()?;
         self.paragraph.runs.push(Run::Image { image_id: id });

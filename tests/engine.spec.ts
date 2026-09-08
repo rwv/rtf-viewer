@@ -640,6 +640,71 @@ test('list fixture resolves numbering, nesting, bullets and a restart', async ({
   expect(result.lines.map(([, x]) => x)).toEqual([27, 27, 45, 45, 27, 27, 27, 27, 27, 18]);
 });
 
+test('metafile picture draws the embedded bitmap where the producer draws artwork', async ({
+  page,
+}) => {
+  // The producer's own rendering of the same document, never this engine's output.
+  const reference = await page.request.get('/reference/libreoffice-24.2.7.2-metafile-page-1.png');
+  expect(reference.ok()).toBe(true);
+  const referenceBytes = [...(await reference.body())];
+  const result = await page.evaluate(async (referenceBytes) => {
+    const { RtfDocument } = window.__rtfTest;
+    await document.fonts.load('10px "Rtf Liberation Serif"');
+    const doc = await RtfDocument.load(
+      await (await fetch('/samples/libreoffice-24.2.7.2-metafile.rtf')).arrayBuffer(),
+      { fonts: { 'Liberation Serif': 'Rtf Liberation Serif' } },
+    );
+    const canvas = document.createElement('canvas');
+    await doc.renderPage(canvas, 0, { ppi: 96 });
+    const context = canvas.getContext('2d')!;
+    const actual = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const bitmap = await createImageBitmap(
+      new Blob([new Uint8Array(referenceBytes)], { type: 'image/png' }),
+    );
+    const referenceCanvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const referenceContext = referenceCanvas.getContext('2d')!;
+    referenceContext.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const expected = referenceContext.getImageData(
+      0,
+      0,
+      referenceCanvas.width,
+      referenceCanvas.height,
+    ).data;
+    // Count coloured pixels, which is what the drawing contributes over a white page.
+    const coloured = (pixels: Uint8ClampedArray) => {
+      let count = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        const [r, g, b] = [pixels[index], pixels[index + 1], pixels[index + 2]];
+        if (Math.max(r, g, b) - Math.min(r, g, b) > 12 || r < 235) count++;
+      }
+      return count;
+    };
+    const result = {
+      diagnostics: doc.diagnostics.map((diagnostic: any) => diagnostic.code),
+      raster: doc.model.images.map((image: any) => [
+        image.format,
+        image.raster ? [image.raster.width, image.raster.height] : null,
+      ]),
+      size: [canvas.width, canvas.height],
+      referenceSize: [referenceCanvas.width, referenceCanvas.height],
+      actualColoured: coloured(actual),
+      expectedColoured: coloured(expected),
+    };
+    doc.destroy();
+    return result;
+  }, referenceBytes);
+  // The metafile carries only blit records, so the bitmap is drawn and that is reported.
+  expect(result.diagnostics).toContain('approximated-metafile-bitmap');
+  expect(result.diagnostics).not.toContain('unsupported-image-format');
+  expect(result.raster).toEqual([['wmf', [121, 81]]]);
+  expect(result.size).toEqual(result.referenceSize);
+  // Both pages carry the same drawing over otherwise white text pages; the engine must be in
+  // the same order of magnitude rather than pixel identical, since it scales a 121 x 81 source.
+  expect(result.actualColoured).toBeGreaterThan(result.expectedColoured * 0.6);
+  expect(result.actualColoured).toBeLessThan(result.expectedColoured * 1.6);
+});
+
 test('real LibreOffice table sample keeps producer column geometry and page count', async ({
   page,
 }) => {
