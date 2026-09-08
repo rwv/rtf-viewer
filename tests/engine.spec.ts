@@ -546,6 +546,58 @@ test('table cell fill and vertical alignment fixture matches its stated geometry
   expect(result.unshadedPixel).toEqual([255, 255, 255]);
 });
 
+test('merged cells fixture spans columns and drops the boundary it removed', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { RtfDocument } = window.__rtfTest;
+    await document.fonts.load('12px "Rtf Liberation Serif"');
+    const doc = await RtfDocument.load(
+      await (await fetch('/samples/table-merged-cells.rtf')).arrayBuffer(),
+      { fonts: { 'Liberation Serif': 'Rtf Liberation Serif' } },
+    );
+    const layout = doc.getPageLayout(0);
+    const wallsAt = (y: number) =>
+      [
+        ...new Set(
+          layout.decorations
+            .filter((rule: any) => rule.width <= 2 && rule.y === y)
+            .map((rule: any) => rule.x),
+        ),
+      ].sort((a: number, b: number) => a - b);
+    const result = {
+      pages: doc.pageCount,
+      diagnostics: doc.diagnostics.map((diagnostic: any) => diagnostic.code),
+      lines: layout.lines.map((line: any) => [
+        line.fragments.map((fragment: any) => fragment.text ?? '').join(''),
+        line.x,
+        line.y,
+      ]),
+      mergedHeaderWalls: wallsAt(18),
+      plainRowWalls: wallsAt(34),
+      trailingMergeWalls: wallsAt(50),
+    };
+    doc.destroy();
+    return result;
+  });
+  expect(result.pages).toBe(1);
+  expect(result.diagnostics).toEqual([]);
+  // A merged-away cell contributes no blank line, so every row is one line tall.
+  expect(result.lines).toEqual([
+    ['Merged head', 21, 20],
+    ['Third', 141, 20],
+    ['One', 21, 36],
+    ['Two', 81, 36],
+    ['Three', 141, 36],
+    ['First', 21, 52],
+    ['Spans the rest', 81, 52],
+    ['After the table.', 18, 66],
+  ]);
+  // The 78 pt boundary is gone where the first two columns merged.
+  expect(result.mergedHeaderWalls).toEqual([17.5, 137.75, 197.5]);
+  expect(result.plainRowWalls).toEqual([17.5, 77.75, 137.75, 197.5]);
+  // The 138 pt boundary is gone where the last two columns merged.
+  expect(result.trailingMergeWalls).toEqual([17.5, 77.75, 197.5]);
+});
+
 test('real LibreOffice table sample keeps producer column geometry and page count', async ({
   page,
 }) => {

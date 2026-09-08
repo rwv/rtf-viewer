@@ -366,6 +366,33 @@ describe('ordinary table geometry', () => {
   });
 });
 
+describe('merged table cells', () => {
+  it('gives a merged cell the full width of the columns it spans', async () => {
+    // The same text in a 20 pt column wraps and in the merged 40 pt column does not.
+    const narrow = await layoutDocument(
+      model([tableRow([tableCell(['abcd'], 20), tableCell([''], 40)])], 50, 100),
+      services,
+    );
+    expect(narrow.pages[0].lines.map(textOf)).toEqual(['abcd', '']);
+    const merged = await layoutDocument(
+      model([tableRow([tableCell(['abcdefgh'], 40)])], 50, 100),
+      services,
+    );
+    expect(merged.pages[0].lines.map(textOf)).toEqual(['abcdefgh']);
+    expect(merged.pages[0].lines[0].width).toBe(40);
+  });
+  it('draws only the walls the merged row actually has', async () => {
+    const walls = { top: null, left: rule(1), bottom: null, right: rule(1) };
+    const layout = await layoutDocument(
+      model([tableRow([tableCell(['a'], 40, { borders: walls })])], 50, 100),
+      services,
+    );
+    expect(layout.pages[0].decorations.filter((d) => d.height > d.width).map((d) => d.x)).toEqual([
+      9.5, 49.5,
+    ]);
+  });
+});
+
 describe('vertical cell alignment and shading', () => {
   it('offsets content for centre and bottom alignment inside a taller row', async () => {
     const row = tableRow([

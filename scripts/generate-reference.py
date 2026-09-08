@@ -194,6 +194,41 @@ Page three marker.\par
         + "\n\\pard\\sl-240\\slmult0 After the table.\\par\n}",
     )
 
+    def merged_row(cells: list[str], properties: list[str], boundaries: list[int]) -> str:
+        definition = fill_row_definition
+        for cell_properties, boundary in zip(properties, boundaries, strict=True):
+            definition += cell_properties + f"\\cellx{boundary}"
+        body = "".join(cell_start + text + "\\cell" for text in cells)
+        return definition + "\n" + body + "\\row"
+
+    write_text(
+        "table-merged-cells.rtf",
+        r"""{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\froman\fcharset0 Liberation Serif;}}
+\paperw4320\paperh4320\margl360\margr360\margt360\margb360
+\f0\fs24\sl-240\slmult0
+"""
+        + "\n".join(
+            [
+                # A header whose first two columns are one merged cell.
+                merged_row(
+                    ["Merged head", "", "Third"],
+                    [r"\clmgf", r"\clmrg", ""],
+                    [1200, 2400, 3600],
+                ),
+                # An ordinary row underneath keeps all three columns.
+                merged_row(["One", "Two", "Three"], ["", "", ""], [1200, 2400, 3600]),
+                # A merge that runs to the end of the row.
+                merged_row(
+                    ["First", "Spans the rest", ""],
+                    ["", r"\clmgf", r"\clmrg"],
+                    [1200, 2400, 3600],
+                ),
+            ]
+        )
+        + "\n\\pard\\sl-240\\slmult0 After the table.\\par\n}",
+    )
+
     write_text(
         "showcase.rtf",
         """{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1
