@@ -49,9 +49,10 @@ timers rather than in layout. Yields are now counted once for the whole flow, an
 lays out in 586 ms. A deterministic test in the fast gate asserts the count: 240 blocks yield seven
 times, where the defect yielded 182.
 
-The remaining yield cost is real but small, and the primitive is still a clamped timer rather than
-a message-channel task; that is recorded as its own follow-up rather than folded into this
-measurement.
+The primitive is still a clamped timer rather than an unclamped task. At about four milliseconds a
+yield, the counts above put roughly 250 to 500 ms of each shape's layout in timers rather than in
+work, which would make it the largest single cost left. That arithmetic is an estimate, not a
+measurement, and confirming or correcting it is issue #41 rather than something folded in here.
 
 **The Worker decision this measurement was for**: laying out a 87-page document costs 402 ms and
 painting a page costs 10 ms, both in yield-interrupted slices rather than one block. Moving layout
