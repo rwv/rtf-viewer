@@ -25,6 +25,44 @@ and a half times the observed peak, so a real regression trips them and machine 
 These are parser numbers on one machine; they are a regression baseline, not a promise about any
 other hardware. Layout and paint latency remain unmeasured.
 
+Layout and paint latency were measured with `pnpm bench:render` on the same container, Chromium,
+production build, median of five runs per shape after one warm run:
+
+| Shape                    | Input KiB | Pages | Fragments | Load ms | Layout ms | Paint ms |
+| ------------------------ | --------: | ----: | --------: | ------: | --------: | -------: |
+| prose, 2000 paragraphs   |       265 |    87 |    84,000 |   444.3 |     402.1 |      9.9 |
+| tables, 1000 rows        |       254 |    22 |    15,000 |   653.8 |     586.1 |     22.5 |
+| list, 3000 items         |       146 |    66 |    45,000 |   570.2 |     487.4 |      9.3 |
+| unicode, 2000 paragraphs |        83 |    44 |    14,000 |   338.3 |     304.2 |      9.1 |
+
+Load is the whole public path and layout is `relayout()` alone, so the gap between the two columns
+is parse plus fonts. Paint is one page at 96 PPI. The budgets are 4,000 ms, 3,600 ms and 150 ms,
+about six times the observed medians.
+
+The first run of this benchmark found a defect worth the whole exercise: the table shape took
+12,936 ms to lay out, twenty-one times the per-fragment cost of prose. The cause was the yield
+cadence, not the geometry. Layout releases the main thread by awaiting a timer, and every call
+site yielded on a count of work — every 32 blocks, every 2,048 graphemes, every 32 painted lines —
+except the cell path, which yielded once per cell. A nested `setTimeout` is clamped to about four
+milliseconds, so a thousand three-cell rows spent three thousand yields, roughly twelve seconds, in
+timers rather than in layout. Yields are now counted once for the whole flow, and the same document
+lays out in 586 ms. A deterministic test in the fast gate asserts the count: 240 blocks yield seven
+times, where the defect yielded 182.
+
+The primitive is still a clamped timer rather than an unclamped task. At about four milliseconds a
+yield, the counts above put roughly 250 to 500 ms of each shape's layout in timers rather than in
+work, which would make it the largest single cost left. That arithmetic is an estimate, not a
+measurement, and confirming or correcting it is issue #41 rather than something folded in here.
+
+**The Worker decision this measurement was for**: laying out a 87-page document costs 402 ms and
+painting a page costs 10 ms, both in yield-interrupted slices rather than one block. Moving layout
+into a Worker buys a serialization boundary for every fragment and a font-measurement problem —
+Canvas metrics are not available to a Worker without transferring or duplicating the font state —
+in exchange for removing work that already yields roughly every 32 blocks. On this evidence M7 is
+not worth doing for layout latency alone. It stays on the roadmap for the case it actually serves,
+a document large enough that even sliced layout is disruptive, and that case needs a document to
+be measured, not an assumption.
+
 The seeded mutation campaign found a real panic the first time it ran: an empty `\leveltext`
 group sliced a zero-length vector from index one, reachable from any document. It is fixed, and
 its minimized input is retained in `fuzz/regressions/` and replayed by the fast gate. A

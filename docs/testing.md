@@ -66,10 +66,17 @@ shapes built from fixed recipes: prose, tables, lists and Unicode escapes with b
 reports the median of five parses and the peak bytes held, and exits non-zero when a shape misses
 its budget or fails to parse at all — a rejected document is a broken benchmark, not a fast one.
 Budgets are what the project is willing to ship rather than the current measurement plus a margin.
-Measured results are recorded in [verification](verification.md).
 
-Layout and paint latency are not yet measured; that is the next step, and moving layout into a
-Worker should not be decided before it is.
+`pnpm bench:render` measures the other half in a real browser through the public API: whole-document
+load, `relayout()` on an already-parsed document so the number is layout alone, and `renderPage()`
+for one page at 96 PPI. It runs the same four shapes, reports the median of five runs with the page
+and fragment counts beside them, writes `artifacts/render-benchmark.json`, and fails a shape that
+misses its budget. It runs in Chromium only and one worker at a time: a benchmark comparing three
+browsers measures the browsers, and two measurements sharing a machine measure the machine. Like the
+parser benchmark it is deliberately outside `pnpm check`, which is why the yielding behaviour it
+found has its own deterministic test in the fast gate.
+
+Measured results for both are recorded in [verification](verification.md).
 
 ## Visual evidence
 
@@ -93,6 +100,8 @@ The final implementation report must record actual commands, versions, pass/fail
 | `pnpm typecheck`      | Browser, Worker, tests and Node build configuration                           |
 | `pnpm test:browser`   | Production example and engine integration; run after build                    |
 | `pnpm test:package`   | Pack once, install outside the workspace, type-check, build and run           |
+| `pnpm bench:parser`   | Parse latency and peak allocation against documented budgets                  |
+| `pnpm bench:render`   | Browser load, layout and paint latency against documented budgets             |
 
 Upstream commit updates use the same complete CI gate. The Git submodule is initialized during source checkout, but its workspace is never installed or built. Both the original upstream signature and our PNG/JPEG behavior are checked. `artifacts/build-meta.json` records the actual build inputs and outputs for dependency/size review. The packed consumer contains bundled JavaScript and uses no submodule.
 

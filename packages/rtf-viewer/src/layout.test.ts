@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { layoutDocument } from './layout.js';
 import { pixelSize } from './paint.js';
 import type {
@@ -499,5 +499,47 @@ describe('vertical cell alignment and shading', () => {
     expect(await fill({ background: null, foreground: null, intensity: 5000 })).toBe('#808080');
     // A foreground alone has no pattern to apply, so nothing is filled.
     expect(await fill({ background: null, foreground: 2, intensity: null })).toBeUndefined();
+  });
+});
+
+describe('cooperative yielding', () => {
+  it('yields on the work done rather than once per table cell', async () => {
+    // Sixty three-cell rows are 240 blocks: 60 rows plus 180 cell paragraphs. A yield every 32
+    // blocks is seven of them. Yielding once per cell instead would be 240, and each
+    // yield costs a clamped timer, which is what made a large table slower to lay out than to
+    // parse by an order of magnitude.
+    const rows = Array.from({ length: 60 }, () =>
+      tableRow([tableCell(['a'], 20), tableCell(['b'], 40), tableCell(['c'], 60)]),
+    );
+    const timer = vi.spyOn(globalThis, 'setTimeout');
+    try {
+      const layout = await layoutDocument(model(rows, 60, 4000), services);
+      expect(layout.pages[0].lines.length).toBe(180);
+      expect(timer).toHaveBeenCalledTimes(Math.floor((60 + 180) / 32));
+    } finally {
+      timer.mockRestore();
+    }
+  });
+  it('abandons a large layout promptly instead of finishing it first', async () => {
+    // Aborting from inside the measurement makes this a fact about the layout rather than about
+    // how fast the machine ran: a layout that only checked cancellation at the end would still
+    // measure every one of the four thousand rows.
+    const controller = new AbortController();
+    const rows = Array.from({ length: 4000 }, () =>
+      tableRow([tableCell(['a'], 20), tableCell(['b'], 40), tableCell(['c'], 60)]),
+    );
+    let measurements = 0;
+    const counted: LayoutServices = {
+      ...services,
+      measure: (text, style) => {
+        if (++measurements === 100) controller.abort();
+        return services.measure(text, style);
+      },
+    };
+    await expect(
+      layoutDocument(model(rows, 60, 4000), counted, { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    // One yield's worth of blocks may still be measured after the abort, never thousands.
+    expect(measurements).toBeLessThan(200);
   });
 });

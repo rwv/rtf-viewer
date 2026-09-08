@@ -45,6 +45,8 @@ const closing = /^[、。，．？！：；）］｝〉》」』】〕〗〙〛�
 /** Smallest usable line width. Indents that overrun their container clamp to it. */
 const MIN_COLUMN_WIDTH = 1;
 const EPSILON = 0.001;
+/** Blocks laid out between yields, counted the same whether they are paragraphs or cells. */
+const YIELD_EVERY = 32;
 
 async function tokenize(paragraph: Paragraph, signal?: AbortSignal): Promise<Token[]> {
   const result: Token[] = [];
@@ -163,6 +165,7 @@ interface FlowContext {
   /** Height of the page content area, used only for oversized-content notices. */
   contentHeight: number;
   warn(code: string, message: string): void;
+  /** Check for cancellation, and release the main thread every `YIELD_EVERY` calls. */
   tick(): Promise<void>;
 }
 
@@ -501,6 +504,7 @@ export async function layoutDocument(
     }
   };
   let page: (typeof pages)[number];
+  let sinceYield = 0;
   let y = p.marginTop;
   const newPage = () => {
     if (pages.length >= maxPages)
@@ -519,14 +523,20 @@ export async function layoutDocument(
     signal: options.signal,
     contentHeight: bottom - p.marginTop,
     warn,
+    // One counted yield point for the whole flow. Yielding once per unit of work instead ties
+    // the cost to the document's shape: a table calls this once per cell, and a yield costs a
+    // clamped timer, which made laying out a thousand rows cost more in timers than in layout.
     tick: async () => {
+      checkAbort(options.signal);
+      if (++sinceYield < YIELD_EVERY) return;
+      sinceYield = 0;
       await nextTask();
       checkAbort(options.signal);
     },
   };
 
   for (let blockIndex = 0; blockIndex < model.blocks.length; blockIndex++) {
-    if (blockIndex % 32 === 0) await ctx.tick();
+    await ctx.tick();
     const block = model.blocks[blockIndex];
     if (block.kind === 'pageBreak') {
       newPage();
