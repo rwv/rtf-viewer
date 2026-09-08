@@ -528,7 +528,10 @@ export async function layoutDocument(
 
   async function layoutRow(row: Row, blockIndex: number): Promise<void> {
     if (row.cells.length === 0) return;
-    const shiftX = rowShift(row);
+    let rightmost = row.left;
+    for (const cell of row.cells)
+      if (Number.isFinite(cell.right) && cell.right > rightmost) rightmost = cell.right;
+    const shiftX = rowShift(row, rightmost);
     const plans: CellPlan[] = [];
     let previous = row.left;
     for (const cell of row.cells) {
@@ -588,7 +591,7 @@ export async function layoutDocument(
     for (;;) {
       const available = bottom - y;
       if (height - consumed <= available + EPSILON) {
-        emitFragment(plans, consumed, height);
+        emitFragment(plans, consumed, height, true);
         return;
       }
       // Cut at the lowest line bottom that still fits, so no line straddles the page edge.
@@ -610,15 +613,14 @@ export async function layoutDocument(
           );
         }
       }
-      emitFragment(plans, consumed, cut);
+      emitFragment(plans, consumed, cut, false);
       consumed = cut;
       newPage();
     }
   }
 
-  function rowShift(row: Row): number {
-    const last = row.cells.at(-1)!;
-    const width = last.right - row.left;
+  function rowShift(row: Row, rightmost: number): number {
+    const width = rightmost - row.left;
     if (!Number.isFinite(width) || width <= 0) return 0;
     if (row.align === 'center') return (contentWidth - width) / 2 - row.left;
     if (row.align === 'right') return contentWidth - width - row.left;
@@ -627,9 +629,11 @@ export async function layoutDocument(
 
   /**
    * Place the row slice [from, to) at the current y. Every fragment is drawn as a closed box,
-   * so a row broken across pages is still bounded above and below on each page.
+   * so a row broken across pages is still bounded above and below on each page. The closing
+   * fragment also places content that overflows an exact row height, which is drawn rather
+   * than clipped.
    */
-  function emitFragment(plans: CellPlan[], from: number, to: number): void {
+  function emitFragment(plans: CellPlan[], from: number, to: number, closing: boolean): void {
     const height = to - from;
     const top = y;
     for (const plan of plans) {
@@ -637,7 +641,8 @@ export async function layoutDocument(
       // next page. Consuming them keeps a line from being placed twice.
       const remaining: DraftLine[] = [];
       for (const line of plan.lines) {
-        if (line.y + line.height <= to + EPSILON) page!.lines.push(shift(line, top - from));
+        if (closing || line.y + line.height <= to + EPSILON)
+          page!.lines.push(shift(line, top - from));
         else remaining.push(line);
       }
       plan.lines = remaining;

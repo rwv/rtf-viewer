@@ -288,7 +288,11 @@ describe('ordinary table geometry', () => {
       ),
       services,
     );
-    expect(exact.pages[0].lines.at(-1)).toMatchObject({ y: 15 });
+    // The row advances by its exact height and the overflowing content is still drawn.
+    expect(exact.pages[0].lines.map((line) => [textOf(line), line.y])).toEqual([
+      ['a', 10],
+      ['b', 15],
+    ]);
     expect(exact.diagnostics.map((d) => d.code)).toContain('table-row-overflow');
   });
   it('centres and right-aligns a row inside the page content box', async () => {

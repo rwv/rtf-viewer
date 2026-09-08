@@ -61,6 +61,7 @@ export interface LineLayout {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  /** Index of the top-level block that produced the line; a cell line names its row. */
   readonly paragraphIndex: number;
   readonly fragments: readonly Fragment[];
 }
