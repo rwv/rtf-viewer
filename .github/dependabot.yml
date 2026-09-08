@@ -11,6 +11,7 @@ updates:
     groups:
       development:
         patterns: ['*']
+        update-types: ['minor', 'patch']
   - package-ecosystem: cargo
     directory: /
     schedule:
@@ -26,3 +27,4 @@ updates:
     groups:
       actions:
         patterns: ['*']
+        update-types: ['minor', 'patch']

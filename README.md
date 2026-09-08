@@ -24,9 +24,9 @@ const canvas = document.querySelector<HTMLCanvasElement>('#page')!;
 const rtf = await RtfDocument.load(file);
 
 try {
-  console.log(rtf.pageCount);      // complete count after loading
+  console.log(rtf.pageCount); // complete count after loading
   console.log(rtf.getPageSize(0)); // points; page indexes start at zero
-  console.log(rtf.diagnostics);   // unsupported or approximated content
+  console.log(rtf.diagnostics); // unsupported or approximated content
   await rtf.renderPage(canvas, 0, { ppi: 144 });
 } finally {
   rtf.destroy();
@@ -39,11 +39,11 @@ An `AbortSignal` cancels loading or rendering. Destroying a document releases it
 
 ## Public API and versioning
 
-| Import | Purpose |
-| --- | --- |
-| `rtf-viewer` | `RtfDocument`, `layoutDocument`, `pixelSize`, and public model/layout/options types |
-| `rtf-viewer/viewer` | `RtfViewer` for navigation and zoom around a supplied canvas |
-| `rtf-viewer/assets/*` | Shipped Worker/WASM assets for explicit deployment |
+| Import                | Purpose                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `rtf-viewer`          | `RtfDocument`, `layoutDocument`, `pixelSize`, and public model/layout/options types |
+| `rtf-viewer/viewer`   | `RtfViewer` for navigation and zoom around a supplied canvas                        |
+| `rtf-viewer/assets/*` | Shipped Worker/WASM assets for explicit deployment                                  |
 
 The [1.x API contract](https://github.com/rwv/rtf-viewer/blob/main/docs/api.md#public-api-and-versioning) includes these exports, public fields, and ownership rules. Incompatible changes require a major version. Format coverage can grow compatibly in minor releases; fixes can change rendered pixels. This is a read-only library, with no editing or round-trip promise.
 
@@ -73,11 +73,11 @@ pnpm exec playwright install --with-deps chromium firefox webkit
 pnpm check
 ```
 
-`pnpm check` covers native Rust, generated contracts, deterministic layout, typed browser/Worker/build code, production browser tests, and a fresh npm installation of the packed archive. See [testing](https://github.com/rwv/rtf-viewer/blob/main/docs/testing.md) for individual commands and independent reference outputs.
+`pnpm check` covers formatting, lint, Rust format/clippy/tests, generated contracts, deterministic layout, typed browser/Worker/build code, production browser tests, and a fresh npm installation of the packed archive. The [contributor guide](https://github.com/rwv/rtf-viewer/blob/main/CONTRIBUTING.md) describes fast checks, required CI gates, and dependency updates. See [testing](https://github.com/rwv/rtf-viewer/blob/main/docs/testing.md) for individual commands and independent reference outputs.
 
 ## Releases and contributing
 
-Use Conventional Commit titles for squash-merged PRs: `fix:` for patches, `feat:` for minor releases, and `!` for breaking changes. Release Please maintains the version/changelog PR. Merging that PR creates the tag and release; Actions verifies the package and publishes it through the `npm` GitHub Environment using OIDC. Manual dispatch is reserved for recovery. See the [release procedure](https://github.com/rwv/rtf-viewer/blob/main/docs/releasing.md).
+Use Conventional Commit titles for squash-merged PRs: `fix:` for patches, `feat:` for minor releases, and `!` for breaking changes. Release Please maintains the version/changelog PR. Merging that PR creates the tag and release; Actions verifies the package and publishes it through the `npm` GitHub Environment using OIDC, then verifies the registry download and runs the installed consumer again. Manual dispatch is reserved for recovery. See the [release procedure](https://github.com/rwv/rtf-viewer/blob/main/docs/releasing.md).
 
 Start with the [engineering constraints](https://github.com/rwv/rtf-viewer/blob/main/AGENTS.md), [architecture](https://github.com/rwv/rtf-viewer/blob/main/docs/architecture.md), and [roadmap](https://github.com/rwv/rtf-viewer/blob/main/docs/roadmap.md). Compatibility evidence lives in the [producer report](https://github.com/rwv/rtf-viewer/blob/main/docs/compatibility.md) and [verification record](https://github.com/rwv/rtf-viewer/blob/main/docs/verification.md). Source reuse and licenses are listed in [third-party notices](https://github.com/rwv/rtf-viewer/blob/main/THIRD_PARTY_NOTICES.md).
 

@@ -18,7 +18,7 @@ Release Please derives semantic versions and changelog entries from [Conventiona
 1. Land normal changes on `main` with Conventional Commit titles. Keep the README, roadmap, support matrix, compatibility notes, and verification record consistent with the behavior being released.
 2. Review the open Release Please pull request. Check its version and changelog claims, and wait for its **Verify** run to pass.
 3. Merge the release pull request. The **Release** workflow creates the tag and GitHub Release, verifies the tagged source, and publishes through the `npm` environment.
-4. Confirm that the GitHub Release contains `rtf-viewer.tgz`, `SHA256SUMS`, `package-manifest.json`, and `package-verification.json`. Confirm that the npm version has provenance and the same integrity recorded in the manifest.
+4. Confirm that the GitHub Release contains `rtf-viewer.tgz`, `SHA256SUMS`, `package-manifest.json`, `package-verification.json`, and `registry-verification.json`. Confirm that the npm version has provenance and the same integrity recorded in the manifest.
 
 The verification job checks that the tag matches the public package version, resolves to the checked-out commit, and is contained in `main`. It then runs the native Rust checks and `pnpm check`. The packed-package Playwright test installs `artifacts/rtf-viewer.tgz` into an isolated production application and writes evidence only after its assertions pass. The publish job receives that archive unchanged.
 
@@ -52,3 +52,19 @@ Rerunning the original push workflow does not resume publication because Release
 `rtf-viewer@1.0.0` was bootstrapped manually. [`v1.0.1`](https://github.com/rwv/rtf-viewer/actions/runs/34192800727) was the first end-to-end GitHub Actions OIDC publication. Historical hashes and registry checks are recorded in [verification](verification.md#v101-github-actions-to-npm).
 
 Tags created before the Release Please migration use their original workflow and archive naming. Use the corresponding historical Actions run for those tags; the new manual recovery path applies to releases created with this workflow.
+
+## Postpublication verification
+
+After publication, `verify-registry` downloads the exact npm version, compares its SHA-512 integrity with the tested archive, installs it into the same isolated production consumer, and runs `npm audit signatures` to verify registry signatures and provenance. It checks declarations, production Worker/WASM URLs, page geometry and bitmap output in Chromium. This job has no OIDC publishing permission and needs neither Rust nor the upstream submodule.
+
+Only successful verification writes `registry-verification.json`. The release retains the first successful report; later retries must match its package identity, integrity and test outcome, while each Actions run retains its own evidence. No published archive is replaced. Registry propagation or signature-service failures fail the job visibly; rerun a failed registry job after transient failures instead of republishing or changing integrity expectations.
+
+To run the same check locally for a version matching the checkout's package version:
+
+```sh
+export RTF_REGISTRY_VERSION=1.0.3
+export RTF_REGISTRY_INTEGRITY='<sha512 integrity from the release package-manifest.json>'
+pnpm test:package
+```
+
+Normal `pnpm test:package` without these variables packs the local build. Consumer install/build commands are asynchronous and each has a 60-second hard timeout. Test setup never requests npm login and never executes package install scripts.

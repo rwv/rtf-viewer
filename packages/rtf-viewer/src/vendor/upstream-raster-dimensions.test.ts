@@ -1,7 +1,5 @@
 import { expect, it } from 'vitest';
-import {
-  sniffRasterDimensions as sniffActualUpstreamRasterDimensions,
-} from '../../../../third-party/office-open-xml-viewer/upstream/packages/core/src/image/raster-dimensions.js';
+import { sniffRasterDimensions as sniffActualUpstreamRasterDimensions } from '../../../../third-party/office-open-xml-viewer/upstream/packages/core/src/image/raster-dimensions.js';
 
 type DeclaredUpstreamSniffer =
   typeof import('@rtf-viewer/upstream-raster-dimensions').sniffRasterDimensions;

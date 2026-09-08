@@ -42,18 +42,24 @@ The final implementation report must record actual commands, versions, pass/fail
 
 `pnpm check` runs native Rust tests, generated-contract drift verification, Vitest geometry/resource tests, library/example builds, TypeScript checking, production Playwright tests and a newly installed tarball consumer. CI also checks Rust formatting and clippy. Cargo builds, tests, and contract generation use the committed lockfile with `--locked`. Browser integration invokes the real compiled Rust parser.
 
-| Command | Scope |
-| --- | --- |
-| `pnpm test:rust` | Byte parser and resource bounds |
-| `pnpm check:contract` | Rust-generated model matches the committed TypeScript |
-| `pnpm test` | Deterministic geometry, lifecycle and upstream image adapter |
-| `pnpm build` | WASM, browser library, declarations and example |
-| `pnpm typecheck` | Browser, Worker, tests and Node build configuration |
-| `pnpm test:browser` | Production example and engine integration; run after build |
-| `pnpm test:package` | Pack once, install outside the workspace, type-check, build and run |
+| Command               | Scope                                                               |
+| --------------------- | ------------------------------------------------------------------- |
+| `pnpm test:rust`      | Byte parser and resource bounds                                     |
+| `pnpm check:contract` | Rust-generated model matches the committed TypeScript               |
+| `pnpm test`           | Deterministic geometry, lifecycle and upstream image adapter        |
+| `pnpm build`          | WASM, browser library, declarations and example                     |
+| `pnpm typecheck`      | Browser, Worker, tests and Node build configuration                 |
+| `pnpm test:browser`   | Production example and engine integration; run after build          |
+| `pnpm test:package`   | Pack once, install outside the workspace, type-check, build and run |
 
 Upstream commit updates use the same complete CI gate. The Git submodule is initialized during source checkout, but its workspace is never installed or built. Both the original upstream signature and our PNG/JPEG behavior are checked. `artifacts/build-meta.json` records the actual build inputs and outputs for dependency/size review. The packed consumer contains bundled JavaScript and uses no submodule.
 
 The independent visual test compares the actual LibreOffice-generated reference PNG with engine ink using a documented four-pixel neighborhood at 96 PPI, paired with exact line text, page count, physical size and indent assertions. It is a tolerant regression check for one known producer document, not a general fidelity score. No project-generated image is used as its own correctness oracle.
 
 Use `pnpm generate:types` after model changes; `pnpm check:contract` must pass before committing. Test outputs, screenshots, packed archives and size measurements are written to ignored `artifacts/` or `test-results/`. Reference generation needs LibreOffice/Pillow/Poppler but ordinary CI consumes the committed licensed artifacts and does not require those tools.
+
+## Engineering gate
+
+`pnpm check` also runs Prettier, selected Oxlint correctness/Promise rules, Rust fmt/clippy, and all four TypeScript configurations. `quality` runs formatting, syntax lint, workflow validation and PR title validation before browser setup; `verify` runs the full gate. Both Playwright configurations and Vitest reject focused tests in CI. See [CONTRIBUTING.md](../CONTRIBUTING.md) for commands and generated/upstream exclusions.
+
+The package consumer also runs after publication against the exact npm version and tested integrity, including npm signature/provenance verification. Archive and registry modes share the same geometry, declaration and resource-loading assertions. Every install/build subprocess is asynchronous with a 60-second timeout; runtime page errors fail the test. See [release verification](releasing.md#postpublication-verification).

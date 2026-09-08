@@ -190,7 +190,10 @@ async function savePng(): Promise<void> {
     exportCanvas.height = rendered.height;
     exportCanvas.getContext('2d')?.drawImage(rendered, 0, 0);
     const blob = await new Promise<Blob>((resolve, reject) => {
-      exportCanvas.toBlob((value) => value ? resolve(value) : reject(new Error('PNG encoding failed.')), 'image/png');
+      exportCanvas.toBlob(
+        (value) => (value ? resolve(value) : reject(new Error('PNG encoding failed.'))),
+        'image/png',
+      );
     });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement('a');

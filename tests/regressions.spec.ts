@@ -28,45 +28,77 @@ test.beforeEach(async ({ page }) => {
   await page.waitForFunction(() => Boolean(window.__rtfTest));
 });
 
-test('WASM decodes all compatibility codepage fixtures and UTF-16 ASCII-range bytes', async ({ page }) => {
+test('WASM decodes all compatibility codepage fixtures and UTF-16 ASCII-range bytes', async ({
+  page,
+}) => {
   for (const [codepage, hex, expected] of encodings) {
-    const result = await page.evaluate(async ({ codepage, hex }) => {
-      const escaped = hex.match(/../g)!.map(byte => `\\'${byte}`).join('');
-      const bytes = new TextEncoder().encode(`{\\rtf1\\ansi\\ansicpg${codepage} ${escaped}}`);
-      const doc = await window.__rtfTest.RtfDocument.load(bytes);
-      try {
-        return {
-          text: doc.model.blocks.flatMap(block => block.kind === 'paragraph' ? block.runs : [])
-            .map(run => run.kind === 'text' ? run.text : '').join(''),
-          codes: doc.diagnostics.map(diagnostic => diagnostic.code),
-        };
-      } finally { doc.destroy(); }
-    }, { codepage, hex });
+    const result = await page.evaluate(
+      async ({ codepage, hex }) => {
+        const escaped = hex
+          .match(/../g)!
+          .map((byte) => `\\'${byte}`)
+          .join('');
+        const bytes = new TextEncoder().encode(`{\\rtf1\\ansi\\ansicpg${codepage} ${escaped}}`);
+        const doc = await window.__rtfTest.RtfDocument.load(bytes);
+        try {
+          return {
+            text: doc.model.blocks
+              .flatMap((block) => (block.kind === 'paragraph' ? block.runs : []))
+              .map((run) => (run.kind === 'text' ? run.text : ''))
+              .join(''),
+            codes: doc.diagnostics.map((diagnostic) => diagnostic.code),
+          };
+        } finally {
+          doc.destroy();
+        }
+      },
+      { codepage, hex },
+    );
     expect(result.text, `codepage ${codepage}, bytes ${hex}`).toBe(expected);
     expect(result.codes).not.toContain('unsupported-codepage');
     expect(result.codes).not.toContain('text-decoding-error');
   }
 });
 
-test('150-PPI Canvas and ImageBitmap dimensions match physical paper without changing layout', async ({ page }) => {
-  for (const [width, height, pixels] of [[432, 576, [900, 1200]], [612, 792, [1275, 1650]]] as const) {
-    const result = await page.evaluate(async ({ width, height }) => {
-      const bytes = new TextEncoder().encode(`{\\rtf1\\ansi\\paperw${width * 20}\\paperh${height * 20} Exact paper}`);
-      const doc = await window.__rtfTest.RtfDocument.load(bytes);
-      try {
-        const layout = JSON.stringify(doc.getPageLayout(0));
-        const canvas = document.createElement('canvas');
-        await doc.renderPage(canvas, 0, { ppi: 150 });
-        const bitmap = await doc.renderPageToBitmap(0, { ppi: 150 });
+test('150-PPI Canvas and ImageBitmap dimensions match physical paper without changing layout', async ({
+  page,
+}) => {
+  for (const [width, height, pixels] of [
+    [432, 576, [900, 1200]],
+    [612, 792, [1275, 1650]],
+  ] as const) {
+    const result = await page.evaluate(
+      async ({ width, height }) => {
+        const bytes = new TextEncoder().encode(
+          `{\\rtf1\\ansi\\paperw${width * 20}\\paperh${height * 20} Exact paper}`,
+        );
+        const doc = await window.__rtfTest.RtfDocument.load(bytes);
         try {
-          return {
-            paper: doc.getPageSize(0), canvas: [canvas.width, canvas.height],
-            bitmap: [bitmap.width, bitmap.height],
-            unchanged: layout === JSON.stringify(doc.getPageLayout(0)),
-          };
-        } finally { bitmap.close(); }
-      } finally { doc.destroy(); }
-    }, { width, height });
-    expect(result).toEqual({ paper: { width, height }, canvas: pixels, bitmap: pixels, unchanged: true });
+          const layout = JSON.stringify(doc.getPageLayout(0));
+          const canvas = document.createElement('canvas');
+          await doc.renderPage(canvas, 0, { ppi: 150 });
+          const bitmap = await doc.renderPageToBitmap(0, { ppi: 150 });
+          try {
+            return {
+              paper: doc.getPageSize(0),
+              canvas: [canvas.width, canvas.height],
+              bitmap: [bitmap.width, bitmap.height],
+              unchanged: layout === JSON.stringify(doc.getPageLayout(0)),
+            };
+          } finally {
+            bitmap.close();
+          }
+        } finally {
+          doc.destroy();
+        }
+      },
+      { width, height },
+    );
+    expect(result).toEqual({
+      paper: { width, height },
+      canvas: pixels,
+      bitmap: pixels,
+      unchanged: true,
+    });
   }
 });

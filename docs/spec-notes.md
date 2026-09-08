@@ -1,6 +1,6 @@
 # RTF 1.9.1 parser rules used by this project
 
-Primary source: Microsoft, *Rich Text Format (RTF) Specification, Version 1.9.1*, 19 March 2008. References are printed PDF page numbers. The longer research record, including suggested future tests, is in the adjacent research workspace and is not required at runtime.
+Primary source: Microsoft, _Rich Text Format (RTF) Specification, Version 1.9.1_, 19 March 2008. References are printed PDF page numbers. The longer research record, including suggested future tests, is in the adjacent research workspace and is not required at runtime.
 
 ## Token and group rules
 
