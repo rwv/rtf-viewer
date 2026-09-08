@@ -327,13 +327,11 @@ describe('ordinary table geometry', () => {
     expect(layout.pages[1].lines.map(textOf)).toEqual(['d', 'e', 'after']);
     expect(layout.pages[0].lines.map((line) => line.y)).toEqual([10, 20, 30, 10]);
     expect(layout.pages[1].lines.map((line) => line.y)).toEqual([10, 20, 30]);
-    // The top border belongs to the first fragment and the bottom border to the last.
+    // Each fragment is closed above and below, so the break itself is drawn.
     const horizontal = (page: (typeof layout.pages)[number]) =>
-      page.decorations.filter((decoration) => decoration.width > decoration.height);
-    expect(horizontal(layout.pages[0])).toHaveLength(1);
-    expect(horizontal(layout.pages[0])[0].y).toBe(9.5);
-    expect(horizontal(layout.pages[1])).toHaveLength(1);
-    expect(horizontal(layout.pages[1])[0].y).toBe(29.5);
+      page.decorations.filter((decoration) => decoration.width > decoration.height).map((d) => d.y);
+    expect(horizontal(layout.pages[0])).toEqual([9.5, 39.5]);
+    expect(horizontal(layout.pages[1])).toEqual([9.5, 29.5]);
     // Vertical cell walls are drawn on both fragments.
     expect(layout.pages[0].decorations.filter((d) => d.height > d.width)).toHaveLength(2);
     expect(layout.pages[1].decorations.filter((d) => d.height > d.width)).toHaveLength(2);

@@ -462,8 +462,9 @@ test('ordinary table fixture keeps column geometry, borders and cross-page conti
   expect(result.first.lines.map((line) => line.y)).toEqual([
     20, 20, 20, 36, 36, 36, 52, 64, 52, 52, 80, 80, 80, 104, 116, 128, 140, 152, 164, 176, 104, 104,
   ]);
-  // Row edges at 18/34/50/78/102 pt; the exact 24 pt fourth row ends at 102 pt.
-  expect(result.first.horizontalRules).toEqual([17.5, 33.5, 49.5, 77.5, 101.5]);
+  // Row edges at 18/34/50/78/102 pt; the exact 24 pt fourth row ends at 102 pt, and the
+  // last row is closed at 188 pt where it breaks.
+  expect(result.first.horizontalRules).toEqual([17.5, 33.5, 49.5, 77.5, 101.5, 187.5]);
   // Outer 1 pt walls and 0.5 pt inner walls, each centred on its boundary.
   expect(result.first.verticalRules).toEqual([17.5, 77.75, 137.75, 197.5]);
   // The row continues at the top of page two and only there owns the bottom border.
@@ -471,10 +472,96 @@ test('ordinary table fixture keeps column geometry, borders and cross-page conti
     { text: 'Line 8.', x: 21, y: 18 },
     { text: 'After the table.', x: 18, y: 32 },
   ]);
-  expect(result.second.horizontalRules).toEqual([31.5]);
+  expect(result.second.horizontalRules).toEqual([17.5, 31.5]);
   expect(result.second.verticalRules).toEqual([17.5, 77.75, 137.75, 197.5]);
   expect(result.borderInk).toBeLessThan(80);
   expect(result.marginPixel).toBe(255);
+});
+
+test('real LibreOffice table sample keeps producer column geometry and page count', async ({
+  page,
+}) => {
+  // The producer's own text extraction, not this engine's output.
+  const reference = await page.request.get('/reference/libreoffice-24.2.7.2-table.txt');
+  expect(reference.ok()).toBe(true);
+  const referenceText = (await reference.text()).replace(/\s+/g, ' ');
+  const result = await page.evaluate(async () => {
+    const { RtfDocument } = window.__rtfTest;
+    for (const face of [
+      '10px "Rtf Liberation Serif"',
+      'bold 10px "Rtf Liberation Serif"',
+      '14px "Rtf Liberation Sans"',
+      'bold 14px "Rtf Liberation Sans"',
+    ])
+      await document.fonts.load(face);
+    const doc = await RtfDocument.load(
+      await (await fetch('/samples/libreoffice-24.2.7.2-table.rtf')).arrayBuffer(),
+      {
+        fonts: {
+          'Liberation Serif': 'Rtf Liberation Serif',
+          'Liberation Sans': 'Rtf Liberation Sans',
+        },
+      },
+    );
+    const first = doc.getPageLayout(0);
+    const result = {
+      pages: doc.pageCount,
+      size: doc.getPageSize(0),
+      text: first.lines.map((line: any) =>
+        line.fragments.map((fragment: any) => fragment.text ?? '').join(''),
+      ),
+      // The heading and the centred header row are skipped; body cells share three lefts.
+      columns: [...new Set(first.lines.slice(4).map((line: any) => line.x))].sort(
+        (a: number, b: number) => a - b,
+      ),
+      headerColumns: first.lines.slice(1, 4).map((line: any) => line.x),
+      rowEdges: [
+        ...new Set(
+          first.decorations
+            .filter((rule: any) => rule.width > rule.height)
+            .map((rule: any) => rule.y),
+        ),
+      ].sort((a: number, b: number) => a - b),
+      cellWalls: [
+        ...new Set(
+          first.decorations
+            .filter((rule: any) => rule.height > rule.width)
+            .map((rule: any) => rule.x),
+        ),
+      ].sort((a: number, b: number) => a - b),
+      // The row that starts on the last line of page one continues on page two.
+      continued: doc.getPageLayout(1).decorations.filter((rule: any) => rule.width > rule.height)
+        .length,
+      tableCodes: doc.diagnostics
+        .map((diagnostic: any) => diagnostic.code)
+        .filter((code: string) => code.includes('table')),
+    };
+    doc.destroy();
+    return result;
+  });
+  expect(result.pages).toBe(3);
+  expect(result.size).toEqual({ width: 288, height: 360 });
+  expect(result.text.slice(0, 8)).toEqual([
+    'Table Reference',
+    'Region',
+    'Units',
+    'Note',
+    'North',
+    '1200',
+    'A note long enough to wrap',
+    'inside its own cell.',
+  ]);
+  // Every line the engine produced also appears, unbroken, in the producer's text export,
+  // so the wrap points inside the cells agree.
+  for (const line of result.text) expect(referenceText).toContain(line);
+  expect(result.columns).toEqual([38.25, 88.5, 130.5]);
+  expect(result.headerColumns).toEqual([46.125, 95.75, 188.125]);
+  expect(result.rowEdges.length).toBeGreaterThanOrEqual(10);
+  // Cell walls sit on the 36 / 86.25 / 128.25 / 266.25 pt boundaries; the two sides of an
+  // inner boundary are declared with different widths, so each is centred on its own stroke.
+  expect(result.cellWalls).toEqual([35.625, 85.875, 86.125, 127.875, 128.125, 266.625]);
+  expect(result.continued).toBeGreaterThan(0);
+  expect(result.tableCodes).toEqual(['unsupported-table-cell-alignment']);
 });
 
 test('real LibreOffice sample matches independent page/text geometry and nearby ink', async ({

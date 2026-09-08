@@ -33,7 +33,7 @@ The `ansicpg` behavior and possible-value table on pp. 13–14 are the normative
 
 `par` ends a paragraph, `line` inserts an in-paragraph break, `page` forces a page break, and `sect` ends both a section and paragraph (pp. 142–143). Paragraph properties can occur anywhere in the paragraph (pp. 78–80), so the final paragraph model is resolved at flush. A positive `sl` is minimum line spacing, a negative value is exact, and `slmult1` denotes a multiple of single spacing (p. 80).
 
-Lengths are converted at the semantic boundary: 20 twips = 1 point (p. 8). Default paper is 612 × 792 pt, margins are 90 pt left/right and 72 pt top/bottom, and default tab interval is 36 pt (pp. 41–42, 49). Section-specific dimensions and margins are separate state (`pgwsxn`, `pghsxn`, and section margin controls, p. 74); schema version 1 diagnoses these because its single page object cannot represent mixed sections.
+Lengths are converted at the semantic boundary: 20 twips = 1 point (p. 8). Default paper is 612 × 792 pt, margins are 90 pt left/right and 72 pt top/bottom, and default tab interval is 36 pt (pp. 41–42, 49). Section-specific dimensions and margins are separate state (`pgwsxn`, `pghsxn`, and section margin controls, p. 74); the document model diagnoses these because its single page object cannot represent mixed sections.
 
 ## Pictures
 
@@ -41,11 +41,23 @@ Lengths are converted at the semantic boundary: 20 twips = 1 point (p. 8). Defau
 
 The paired form `{\*\shppict{\pict...}}{\nonshppict{\pict...}}` contains alternatives, so a reader must not emit both (p. 149). PNG/JPEG are rendered after signature and size checks. WMF/EMF bytes are preserved with a diagnostic until a bounded converter is integrated; browsers cannot display them natively.
 
-## Deferred tables and lists
+## Tables
 
-RTF has no table group. Rows run from `trowd` to `row`; `cell` closes a cell, paragraphs use/inherit `intbl`, and row definitions may appear at the start, end, or both (pp. 77–78, 93–96). The initial model consumes controls, retains reading-order cell text with separators, and reports `unsupported-table`; it does not claim table layout.
+RTF has no table group. Rows run from `trowd` to `row`; `cell` closes a cell, paragraphs use or inherit `intbl`, and row definitions may appear at the start of the row, after the cell text, or both (pp. 77-78, 93-96). Because the definition is not group scoped in practice, the reader keeps the row definition outside the saved group state and applies whichever definition is current when `row` arrives.
 
-Word 97+ numbering uses `listtable`, `listoverridetable`, paragraph `ls`, and `ilvl` (pp. 30–35, 87). Until semantic counters exist, the reader intentionally renders `listtext`, the flat marker supplied for old readers, and suppresses the list definition. Old `pntext` has the same fallback role relative to starred `pn` instructions (pp. 84–87). Rendering both semantic numbering and compatibility text would duplicate markers.
+`\cellx` gives the right boundary of a cell in twips from the same origin as `\trleft`, which defaults to the left margin. Cell widths therefore come from consecutive boundaries, and the first cell starts at `\trleft`. `\trrh` is zero for an automatic height, positive for a minimum and negative for an exact height. `\trgaph` is half the space between cells and acts as the default horizontal cell inset.
+
+Cell padding uses paired controls: `\clpadl` and friends carry the value, `\clpadfl` and friends the unit selector, where 3 means twips and 0 means "ignore the value" (pp. 96-98). The row-level `\trpaddl`/`\trpaddfl` pair supplies a default for cells that declare none. This reader resolves padding as cell value, then row value, then `\trgaph`. It honours a value whose selector is absent, which is a compatibility decision rather than a normative rule: the specification's default selector is 0, but writers that omit the selector entirely still emit twips. A selector that is present and is not 3 rejects the value and reports `unsupported-table-padding-unit`.
+
+Border sides are selected by `\clbrdrt`, `\clbrdrl`, `\clbrdrb` and `\clbrdrr` for a cell and by `\trbrdrt`, `\trbrdrl`, `\trbrdrb`, `\trbrdrr`, `\trbrdrh` and `\trbrdrv` for a row; the `\brdr*` controls that follow describe the selected side (pp. 98-101). `\brdrw` is a twip width, `\brdrcf` a colour-table index, and `\brdrnone`/`\brdrnil` remove the border. An explicit cell side always wins, including when it is `\brdrnone`; otherwise an outer edge falls back to the matching row border and an inner edge to `\trbrdrh` or `\trbrdrv`. Widths clamp to 0.25-12 pt so that a hairline stays visible and an absurd width cannot cover the page. Every border style is retained in the model but currently drawn as a solid rule.
+
+Merged cells (`\clmgf`, `\clmrg`, `\clvmgf`, `\clvmrg`), nested tables (`\itap` above 1, `\nestrow`), repeating header rows (`\trhdr`), keep-together rows (`\trkeep`), cell shading and vertical cell alignment are separate features. Each keeps its fallback and reports a specific diagnostic; none of them is implied by ordinary table support.
+
+A row whose definition is unusable never loses text. With no `\cellx` at all, with boundaries that do not increase, with more cells than boundaries, or with no `\row` before the document ends, the cell content is emitted in reading order with a named diagnostic.
+
+## Deferred lists
+
+Word 97+ numbering uses `listtable`, `listoverridetable`, paragraph `ls`, and `ilvl` (pp. 30-35, 87). Until semantic counters exist, the reader intentionally renders `listtext`, the flat marker supplied for old readers, and suppresses the list definition. Old `pntext` has the same fallback role relative to starred `pn` instructions (pp. 84-87). Rendering both semantic numbering and compatibility text would duplicate markers.
 
 ## Resource policy
 

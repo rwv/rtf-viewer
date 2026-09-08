@@ -588,7 +588,7 @@ export async function layoutDocument(
     for (;;) {
       const available = bottom - y;
       if (height - consumed <= available + EPSILON) {
-        emitFragment(plans, consumed, height, consumed === 0, true);
+        emitFragment(plans, consumed, height);
         return;
       }
       // Cut at the lowest line bottom that still fits, so no line straddles the page edge.
@@ -610,7 +610,7 @@ export async function layoutDocument(
           );
         }
       }
-      emitFragment(plans, consumed, cut, consumed === 0, false);
+      emitFragment(plans, consumed, cut);
       consumed = cut;
       newPage();
     }
@@ -625,14 +625,11 @@ export async function layoutDocument(
     return 0;
   }
 
-  /** Place the row slice [from, to) at the current y and draw the borders it owns. */
-  function emitFragment(
-    plans: CellPlan[],
-    from: number,
-    to: number,
-    first: boolean,
-    last: boolean,
-  ): void {
+  /**
+   * Place the row slice [from, to) at the current y. Every fragment is drawn as a closed box,
+   * so a row broken across pages is still bounded above and below on each page.
+   */
+  function emitFragment(plans: CellPlan[], from: number, to: number): void {
     const height = to - from;
     const top = y;
     for (const plan of plans) {
@@ -645,19 +642,11 @@ export async function layoutDocument(
       }
       plan.lines = remaining;
       const rules = page!.decorations;
+      const width = plan.right - plan.left;
       border(rules, model, plan.borders.left, plan.left, top, 0, height);
       border(rules, model, plan.borders.right, plan.right, top, 0, height);
-      if (first) border(rules, model, plan.borders.top, plan.left, top, plan.right - plan.left, 0);
-      if (last)
-        border(
-          rules,
-          model,
-          plan.borders.bottom,
-          plan.left,
-          top + height,
-          plan.right - plan.left,
-          0,
-        );
+      border(rules, model, plan.borders.top, plan.left, top, width, 0);
+      border(rules, model, plan.borders.bottom, plan.left, top + height, width, 0);
     }
     y = top + height;
   }

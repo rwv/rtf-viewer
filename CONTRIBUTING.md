@@ -9,7 +9,7 @@ pnpm exec playwright install --with-deps chromium firefox webkit
 pnpm check
 ```
 
-`pnpm check` is the complete local and release gate: formatting, syntax lint, Rust format/clippy/tests, generated contract verification, unit tests, production build, browser/tool/Worker type checking, type-aware lint, three-browser tests, and an isolated installed-package consumer. Type-aware checks run after build so package declarations exist.
+`pnpm check` is the complete local and release gate: formatting, syntax lint, Rust format/clippy/tests, generated contract verification, unit tests including the producer corpus manifest, production build, browser/tool/Worker type checking, type-aware lint, three-browser tests, and an isolated installed-package consumer. Type-aware checks run after build so package declarations exist.
 
 For a small change, start with `pnpm format:check`, `pnpm lint`, and the affected tests. Use `pnpm format` to apply Prettier and `cargo fmt --all` for Rust. Generated contracts, Release Please's changelog, binary samples, and third-party sources are excluded from formatting. Never regenerate reference images just to make a test pass.
 
@@ -20,5 +20,7 @@ CI runs a fast `quality` job before the full `verify` job. Both are required for
 Use a Conventional Commit PR title and squash merge. Keep formatting-only changes in a separate commit from semantic changes. Review the diff, generated declarations, relevant diagnostics and test evidence before merging. Repository rules require a PR and passing checks, block force pushes/deletion, and allow no bypass; a single maintainer is not required to approve their own PR.
 
 Dependabot groups minor/patch updates and leaves major upgrades separate. Update Cargo's `wasm-bindgen` and the CLI version in the setup action and this guide together; a mismatched ABI must not be worked around. Upstream submodule updates require the source-adapter tests and the complete browser/package gate.
+
+Adding a real producer document means adding its provenance, its independent references and its measured differences to `fixtures/corpus.json`; `pnpm check:corpus` fails on a document nobody described. See [corpus](docs/corpus.md).
 
 See [AGENTS.md](AGENTS.md) for architecture constraints, [testing](docs/testing.md) for evidence standards, and [releasing](docs/releasing.md) for publication and recovery. Real producer corpus expansion and long-running fuzz/performance campaigns are separate work from the per-PR gate.

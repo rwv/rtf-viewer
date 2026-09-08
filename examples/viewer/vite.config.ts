@@ -16,12 +16,12 @@ function copySamples(): Plugin {
       const referenceDirectory = fileURLToPath(new URL('./public/reference', import.meta.url));
       rmSync(referenceDirectory, { recursive: true, force: true });
       mkdirSync(referenceDirectory, { recursive: true });
-      copyFileSync(
-        fileURLToPath(
-          new URL('../../fixtures/reference/libreoffice-25.2.3.2-page-1.png', import.meta.url),
-        ),
-        `${referenceDirectory}/libreoffice-25.2.3.2-page-1.png`,
-      );
+      const sourceReferences = fileURLToPath(new URL('../../fixtures/reference', import.meta.url));
+      for (const name of readdirSync(sourceReferences).filter(
+        (entry) => entry.endsWith('.png') || entry.endsWith('.txt'),
+      )) {
+        copyFileSync(`${sourceReferences}/${name}`, `${referenceDirectory}/${name}`);
+      }
       for (const directory of [syntheticDirectory, realDirectory]) {
         for (const name of readdirSync(directory).filter((entry) => entry.endsWith('.rtf'))) {
           copyFileSync(`${directory}/${name}`, `${outputDirectory}/${name}`);

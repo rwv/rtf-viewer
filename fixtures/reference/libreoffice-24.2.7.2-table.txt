@@ -1,0 +1,63 @@
+Table Reference
+ Region    Units                   Note
+
+                   A note long enough to wrap
+North     1200
+                   inside its own cell.
+
+South     980      Short note.
+
+East      1440     Another note.
+
+West      760      Fourth note.
+
+Centre    310      Fifth note.
+
+Coast     640      Sixth note.
+
+Inland    505      Seventh note.
+
+Islands   120      Eighth note.
+
+Zone 01   137      Row 01 continues the table past
+                the first page.
+
+                Row 02 continues the table past
+Zone 02   174
+                the first page.
+
+                Row 03 continues the table past
+Zone 03   211
+                the first page.
+
+                Row 04 continues the table past
+Zone 04   248
+                the first page.
+
+                Row 05 continues the table past
+Zone 05   285
+                the first page.
+
+                Row 06 continues the table past
+Zone 06   322
+                the first page.
+
+                Row 07 continues the table past
+Zone 07   359
+                the first page.
+
+                Row 08 continues the table past
+Zone 08   396
+                the first page.
+                     Row 09 continues the table past
+Zone 09       433
+                     the first page.
+
+                     Row 10 continues the table past
+Zone 10       470
+                     the first page.
+
+Total         5955   Final row of the table.
+
+After the table.
+

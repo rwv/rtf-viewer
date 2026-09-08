@@ -1,0 +1,247 @@
+{
+  "$schema-note": "Validated by scripts/corpus.ts; see docs/corpus.md for the recording rules.",
+  "documents": [
+    {
+      "id": "libreoffice-25.2.3.2-text",
+      "producer": {
+        "application": "LibreOffice",
+        "version": "25.2.3.2",
+        "generator": "LibreOffice/25.2.3.2$Linux_X86_64 LibreOffice_project/520$Build-2",
+        "platform": "Debian GNU/Linux 13.6 (trixie), x86-64",
+        "packages": [
+          "libreoffice-core 4:25.2.3-2+deb13u6",
+          "libreoffice-writer 4:25.2.3-2+deb13u6",
+          "fonts-liberation 1:2.1.5-3",
+          "fonts-freefont-ttf 20211204+svn4273-2",
+          "poppler-utils 25.03.0-5+deb13u4"
+        ]
+      },
+      "features": [
+        "direct-character-styles",
+        "paragraph-indents",
+        "paragraph-spacing",
+        "unicode-cjk-font-fallback",
+        "automatic-line-breaking"
+      ],
+      "artifacts": [
+        {
+          "path": "fixtures/real/libreoffice-25.2-source.html",
+          "kind": "source",
+          "sha256": "8020b119a4cf9084fe3b1d0953e2257e71a3dc5ecb3040b22343a3b50c6417df",
+          "producedBy": "hand-written CC0 source"
+        },
+        {
+          "path": "fixtures/real/libreoffice-25.2.3.2.rtf",
+          "kind": "document",
+          "sha256": "5eb55a887fb0fef6efe445baf46a021e318af1abac1a938bf402090840e9c9d3",
+          "producedBy": "LibreOffice 25.2.3.2 Rich Text Format filter"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-25.2.3.2.pdf",
+          "kind": "pdf",
+          "sha256": "f63425a88eb3b54f48addb13b9e2b6003d442e3c442d46845cf7da9a1f3c515c",
+          "producedBy": "LibreOffice 25.2.3.2 writer_pdf_Export"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-25.2.3.2.txt",
+          "kind": "text",
+          "sha256": "5f2bab1f375c329a9fc04eb34bae4b3bb1f89fb2a4c240634621bb97319de5a6",
+          "producedBy": "pdftotext -layout, Poppler 25.03.0"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-25.2.3.2-page-1.png",
+          "kind": "image",
+          "sha256": "077a4b322e3bc87723033ee0bac4c630ffe46decaf57b3c9f798b214e99bf829",
+          "producedBy": "pdftoppm -png -r 96, Poppler 25.03.0"
+        }
+      ],
+      "fonts": [
+        {
+          "family": "Liberation Serif",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+          "sha256": "9caef765d2e891c10dd73658894f01e660fe0c1c83e0bda7d6edf561d8f623d4"
+        },
+        {
+          "family": "Liberation Sans",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "sha256": "bade59d822652f76e6941aa87b40a87c13d1cc70db98ededb5011127efafd1d3"
+        },
+        {
+          "family": "FreeSans",
+          "package": "fonts-freefont-ttf 20211204+svn4273-2",
+          "path": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "sha256": "ad5b4b55537a7ef413aa7cbae8e6e9104030f4f1588db66d8907e3724298cb85"
+        }
+      ],
+      "commands": [
+        "python3 scripts/generate-reference.py",
+        "libreoffice -env:UserInstallation=\"file://$(mktemp -d)\" --headless --convert-to 'rtf:Rich Text Format' --outdir /tmp fixtures/real/libreoffice-25.2-source.html",
+        "libreoffice -env:UserInstallation=\"file://$(mktemp -d)\" --headless --convert-to 'pdf:writer_pdf_Export' --outdir fixtures/reference fixtures/real/libreoffice-25.2.3.2.rtf",
+        "pdftotext -layout fixtures/reference/libreoffice-25.2.3.2.pdf fixtures/reference/libreoffice-25.2.3.2.txt",
+        "pdftoppm -singlefile -png -r 96 fixtures/reference/libreoffice-25.2.3.2.pdf fixtures/reference/libreoffice-25.2.3.2-page-1"
+      ],
+      "deltas": [
+        {
+          "id": "lo-2523-line-box-above-ink-box",
+          "classification": "font",
+          "summary": "Retained line rectangles sit above the producer's ink boxes because a line box and a PDF ink box are not the same measurement.",
+          "measured": "Engine minus reference is -0.1 pt horizontally and between -0.6 and -2.2 pt vertically across the ten compared lines.",
+          "status": "accepted",
+          "issue": 20
+        },
+        {
+          "id": "lo-2523-advance-width",
+          "classification": "font",
+          "summary": "Line right edges differ on mixed-style and CJK-fallback lines because Canvas advance widths are not the producer's.",
+          "measured": "Right edges differ by up to 4.9 pt; page count, page size, reading order and all ten line breaks match.",
+          "status": "accepted",
+          "issue": 20
+        }
+      ]
+    },
+    {
+      "id": "libreoffice-24.2.7.2-table",
+      "producer": {
+        "application": "LibreOffice",
+        "version": "24.2.7.2",
+        "generator": "LibreOffice/24.2.7.2$Linux_X86_64 LibreOffice_project/420$Build-2",
+        "platform": "Ubuntu 24.04.4 LTS, x86-64",
+        "packages": [
+          "libreoffice-core 4:24.2.7-0ubuntu0.24.04.4",
+          "libreoffice-writer 4:24.2.7-0ubuntu0.24.04.6",
+          "fonts-liberation 1:2.1.5-3",
+          "poppler-utils 24.02.0-1ubuntu9.9"
+        ]
+      },
+      "features": [
+        "ordinary-table-rows",
+        "cell-boundaries",
+        "cell-padding",
+        "cell-borders",
+        "cross-page-row-continuation",
+        "vertical-cell-alignment",
+        "paragraph-spacing"
+      ],
+      "artifacts": [
+        {
+          "path": "fixtures/real/libreoffice-24.2-table-source.html",
+          "kind": "source",
+          "sha256": "8c1a4272b8502ae484bcf284cd40a60c19c6e4c4172a805595dfab0e68bf8728",
+          "producedBy": "hand-written CC0 source"
+        },
+        {
+          "path": "fixtures/real/libreoffice-24.2.7.2-table.rtf",
+          "kind": "document",
+          "sha256": "30591ba1660f61583c23d676805181a024d4f411d3ca10d8aeed62f2c7cdc966",
+          "producedBy": "LibreOffice 24.2.7.2 Rich Text Format filter"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-table.pdf",
+          "kind": "pdf",
+          "sha256": "4ef3f8091d1e1b81f30e819d935ca1ce53d6f5169ae9202483b643f6c4907a1c",
+          "producedBy": "LibreOffice 24.2.7.2 writer_pdf_Export"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-table.txt",
+          "kind": "text",
+          "sha256": "62f28edfc19ed06112238c83476c20feb0ef901ea0ef4a884d089eba1518076b",
+          "producedBy": "pdftotext -layout, Poppler 24.02.0"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-table-page-1.png",
+          "kind": "image",
+          "sha256": "3ba02f5d16f6133b3c9d8f93c5cece45c5602efe4c99294e978282678bee7fa3",
+          "producedBy": "pdftoppm -png -r 96, Poppler 24.02.0"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-table-page-2.png",
+          "kind": "image",
+          "sha256": "b7c9dc3184b5a24b3de74a4b47ccda04765109371a0f584f33e02c3e9eb26946",
+          "producedBy": "pdftoppm -png -r 96, Poppler 24.02.0"
+        },
+        {
+          "path": "fixtures/reference/libreoffice-24.2.7.2-table-page-3.png",
+          "kind": "image",
+          "sha256": "b2c4346c6c1ec2eaf7fc2aad2027fb46f95f0643fda6a7fe93081a0afc5c59e9",
+          "producedBy": "pdftoppm -png -r 96, Poppler 24.02.0"
+        }
+      ],
+      "fonts": [
+        {
+          "family": "Liberation Serif",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+          "sha256": "705903ae1382f0150f115d6f10a30f5b2f3d6ade649c474afe6366c39174fb65"
+        },
+        {
+          "family": "Liberation Serif Bold",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
+          "sha256": "9e66c25e20868756bf12eb24a520a4552727c9cd108f577f7ae33e3c0110e39c"
+        },
+        {
+          "family": "Liberation Sans",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144"
+        },
+        {
+          "family": "Liberation Sans Bold",
+          "package": "fonts-liberation 1:2.1.5-3",
+          "path": "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+          "sha256": "3973aa5054fb467dd5627245d3dc82e37bf16fe075756156a570455871351582"
+        }
+      ],
+      "commands": [
+        "libreoffice -env:UserInstallation=\"file://$(mktemp -d)\" --headless --convert-to 'rtf:Rich Text Format' --outdir /tmp fixtures/real/libreoffice-24.2-table-source.html",
+        "libreoffice -env:UserInstallation=\"file://$(mktemp -d)\" --headless --convert-to 'pdf:writer_pdf_Export' --outdir fixtures/reference fixtures/real/libreoffice-24.2.7.2-table.rtf",
+        "pdftotext -layout fixtures/reference/libreoffice-24.2.7.2-table.pdf fixtures/reference/libreoffice-24.2.7.2-table.txt",
+        "pdftoppm -png -r 96 fixtures/reference/libreoffice-24.2.7.2-table.pdf fixtures/reference/libreoffice-24.2.7.2-table-page"
+      ],
+      "deltas": [
+        {
+          "id": "lo-2427-line-height",
+          "classification": "font",
+          "summary": "Canvas reports a shorter line box than the producer uses for 10 pt Liberation Serif, so every table row is slightly short.",
+          "measured": "Row pitch is 23.50 pt in the engine and 24.15 pt in the reference; the 0.65 pt per row accumulates over eleven rows.",
+          "status": "open",
+          "issue": 20
+        },
+        {
+          "id": "lo-2427-vertical-cell-alignment",
+          "classification": "layout",
+          "summary": "LibreOffice writes \\clvertalc on every cell; the engine top-aligns cell content and reports unsupported-table-cell-alignment.",
+          "measured": "In the two-line Note row the reference places North at y 105.44 and the note at 99.69; the engine places both at 97.75.",
+          "status": "open",
+          "issue": 21
+        },
+        {
+          "id": "lo-2427-cell-content-inset",
+          "classification": "layout",
+          "summary": "The producer insets cell content by the cell border in addition to the declared padding.",
+          "measured": "Content left edges are 38.25 / 88.50 / 130.50 pt in the engine and 38.70 / 88.90 / 130.95 pt in the reference.",
+          "status": "open",
+          "issue": 21
+        },
+        {
+          "id": "lo-2427-row-split-point",
+          "classification": "layout",
+          "summary": "Both split rows at a line boundary, but the accumulated line-height delta moves which row breaks and shifts the last page by one row.",
+          "measured": "The reference splits the Zone 01 row between pages 1 and 2 and ends page 3 with Total; the engine keeps Zone 01 whole and carries Zone 10 onto page 3. Both render three pages.",
+          "status": "open",
+          "issue": 20
+        },
+        {
+          "id": "lo-2427-collapsed-border-at-continuation",
+          "classification": "paint",
+          "summary": "This document gives each row only left, bottom and right borders, so a row starting a continuation page has no rule above it; the producer draws one.",
+          "measured": "The reference page 2 has a full-width rule at y 36 pt; the engine draws none because the model gives that edge to the previous row's bottom border.",
+          "status": "open",
+          "issue": 21
+        }
+      ]
+    }
+  ]
+}
