@@ -1,6 +1,7 @@
 use crate::model::{
-    Block, Diagnostic, DocumentModel, FontDef, ImageFormat, ImageResource, LineSpacing,
-    PageGeometry, ParagraphAlign, ParagraphStyle, Run, TextStyle,
+    Block, Border, BorderStyle, CellBorders, Diagnostic, DocumentModel, FontDef, ImageFormat,
+    ImageResource, LineSpacing, Padding, PageGeometry, ParagraphAlign, ParagraphStyle, RowAlign,
+    RowHeight, Run, TableCell, TextStyle,
 };
 use encoding_rs::Encoding;
 use std::collections::HashSet;
@@ -14,6 +15,10 @@ const MAX_PARAGRAPHS: usize = 100_000;
 const MAX_IMAGES: usize = 256;
 const MAX_IMAGE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_DIAGNOSTICS: usize = 512;
+const MAX_CELLS_PER_ROW: usize = 256;
+const MAX_BORDER_WIDTH: f64 = 12.0;
+const MIN_BORDER_WIDTH: f64 = 0.25;
+const DEFAULT_BORDER_WIDTH: f64 = 0.5;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum ParseError {
@@ -223,6 +228,131 @@ impl PictureBuilder {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Side {
+    Top = 0,
+    Left = 1,
+    Bottom = 2,
+    Right = 3,
+}
+
+impl Side {
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+
+/// `\clpad*` and `\trpadd*` values with their unit selectors, resolved when the row closes.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct PaddingBuilder {
+    value: [Option<i32>; 4],
+    unit: [Option<i32>; 4],
+}
+
+impl PaddingBuilder {
+    fn resolve(&self, side: Side) -> Option<f64> {
+        let value = self.value[side.index()]?;
+        // RTF 1.9.1 defines selector 3 as twips and 0 as "ignore the value". Writers that omit
+        // the selector still mean twips, so only an explicit non-twip selector rejects a value.
+        match self.unit[side.index()] {
+            None | Some(3) => Some(twips(value.max(0))),
+            _ => None,
+        }
+    }
+
+    fn has_rejected_unit(&self) -> bool {
+        (0..4).any(|index| {
+            self.value[index].is_some() && matches!(self.unit[index], Some(unit) if unit != 3)
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct BorderBuilder {
+    present: bool,
+    width: Option<i32>,
+    color: Option<u32>,
+    style: BorderStyle,
+    hairline: bool,
+}
+
+impl Default for BorderBuilder {
+    fn default() -> Self {
+        Self {
+            present: true,
+            width: None,
+            color: None,
+            style: BorderStyle::Single,
+            hairline: false,
+        }
+    }
+}
+
+impl BorderBuilder {
+    fn resolve(self) -> Option<Border> {
+        if !self.present {
+            return None;
+        }
+        let width = if self.hairline {
+            MIN_BORDER_WIDTH
+        } else {
+            self.width.map_or(DEFAULT_BORDER_WIDTH, twips)
+        };
+        Some(Border {
+            width: width.clamp(MIN_BORDER_WIDTH, MAX_BORDER_WIDTH),
+            color: self.color,
+            style: self.style,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+struct BorderSet([Option<BorderBuilder>; 4]);
+
+impl BorderSet {
+    fn entry(&mut self, side: Side) -> &mut Option<BorderBuilder> {
+        &mut self.0[side.index()]
+    }
+
+    fn get(&self, side: Side) -> Option<BorderBuilder> {
+        self.0[side.index()]
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct CellDef {
+    right_twips: i32,
+    padding: PaddingBuilder,
+    borders: BorderSet,
+}
+
+/// Where the `\brdr*` properties that follow a border selector are stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BorderTarget {
+    Cell(Side),
+    RowOuter(Side),
+    RowInnerHorizontal,
+    RowInnerVertical,
+    Ignored,
+}
+
+#[derive(Debug, Default)]
+struct RowBuilder {
+    left_twips: i32,
+    gap_twips: i32,
+    height_twips: i32,
+    align: Option<RowAlign>,
+    padding: PaddingBuilder,
+    borders: BorderSet,
+    inner_horizontal: Option<BorderBuilder>,
+    inner_vertical: Option<BorderBuilder>,
+    target: Option<BorderTarget>,
+    defs: Vec<CellDef>,
+    pending: CellDef,
+    contents: Vec<Vec<Block>>,
+    overflowed: bool,
+}
+
 pub fn parse(bytes: &[u8]) -> Result<DocumentModel, ParseError> {
     if bytes.len() > MAX_INPUT_BYTES {
         return Err(ParseError::InputTooLarge);
@@ -266,7 +396,9 @@ struct Parser<'a> {
     fallback_remaining: usize,
     diagnostics: Vec<Diagnostic>,
     diagnostic_keys: HashSet<(String, String)>,
-    table_open: bool,
+    row: Option<RowBuilder>,
+    cell_blocks: Vec<Block>,
+    paragraph_count: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -308,7 +440,9 @@ impl<'a> Parser<'a> {
             fallback_remaining: 0,
             diagnostics: Vec::new(),
             diagnostic_keys: HashSet::new(),
-            table_open: false,
+            row: None,
+            cell_blocks: Vec::new(),
+            paragraph_count: 0,
         }
     }
 
@@ -358,11 +492,13 @@ impl<'a> Parser<'a> {
         if !self.paragraph.runs.is_empty() {
             self.finish_paragraph(false)?;
         }
+        let end = self.bytes.len();
+        self.flush_incomplete_row(end)?;
         if self.landscape && !self.explicit_page_width && !self.explicit_page_height {
             std::mem::swap(&mut self.page.width, &mut self.page.height);
         }
         Ok(DocumentModel {
-            schema_version: 1,
+            schema_version: 2,
             page: self.page,
             default_tab: self.default_tab,
             fonts: self.fonts,
@@ -790,6 +926,7 @@ impl<'a> Parser<'a> {
             "page" => self.page_break()?,
             "sect" => {
                 self.finish_paragraph(true)?;
+                self.flush_incomplete_row(offset)?;
                 if self.state.section_page_break {
                     self.push_page_break()?;
                 }
@@ -826,21 +963,123 @@ impl<'a> Parser<'a> {
                 "Section-specific page geometry is not represented by schema version 1",
                 offset,
             ),
-            "trowd" => {
-                self.table_open = true;
+            "trowd" => self.begin_row(),
+            "intbl" => {
+                self.state.paragraph.in_table = toggle(parameter);
+                if self.state.paragraph.in_table {
+                    self.row.get_or_insert_with(RowBuilder::default);
+                }
+            }
+            "cellx" => self.push_cell_boundary(parameter.unwrap_or(0)),
+            "trleft" => self.row_mut().left_twips = parameter.unwrap_or(0),
+            "trgaph" => self.row_mut().gap_twips = parameter.unwrap_or(0).max(0),
+            "trrh" => self.row_mut().height_twips = parameter.unwrap_or(0),
+            "trql" => self.row_mut().align = Some(RowAlign::Left),
+            "trqc" => self.row_mut().align = Some(RowAlign::Center),
+            "trqr" => self.row_mut().align = Some(RowAlign::Right),
+            "cell" => {
+                self.row.get_or_insert_with(RowBuilder::default);
+                self.finish_paragraph(true)?;
+                self.close_cell();
+            }
+            "row" => self.finish_row(offset)?,
+            "nestcell" => {
                 self.diagnostic(
-                    "unsupported-table",
-                    "Table structure was flattened to reading-order text",
+                    "unsupported-nested-table",
+                    "Nested table content was flattened to reading-order text",
                     offset,
                 );
+                self.append_unicode_str("\t")?;
             }
-            "intbl" => self.state.paragraph.in_table = toggle(parameter),
-            "cell" | "nestcell" => self.append_unicode_str("\t")?,
-            "row" | "nestrow" => {
+            "nestrow" => {
+                self.diagnostic(
+                    "unsupported-nested-table",
+                    "Nested table content was flattened to reading-order text",
+                    offset,
+                );
                 self.remove_trailing_tab()?;
                 self.finish_paragraph(true)?;
-                self.table_open = false;
             }
+            "itap" => {
+                if parameter.is_some_and(|level| level > 1) {
+                    self.diagnostic(
+                        "unsupported-nested-table",
+                        "Nested table content was flattened to reading-order text",
+                        offset,
+                    );
+                }
+            }
+            "clbrdrt" | "clbrdrl" | "clbrdrb" | "clbrdrr" | "trbrdrt" | "trbrdrl" | "trbrdrb"
+            | "trbrdrr" | "trbrdrh" | "trbrdrv" => self.select_border(name),
+            "brdrnone" | "brdrnil" => self.update_border(|border| border.present = false),
+            "brdrw" => {
+                let width = parameter.unwrap_or(0).max(0);
+                self.update_border(|border| border.width = Some(width));
+            }
+            "brdrcf" => {
+                let color = positive_index(parameter);
+                self.update_border(|border| border.color = color);
+            }
+            "brdrhair" => self.update_border(|border| {
+                border.hairline = true;
+                border.style = BorderStyle::Single;
+            }),
+            "brdrs" | "brdrth" | "brdrtnthsg" | "brdrengrave" | "brdremboss" => {
+                self.update_border(|border| border.style = BorderStyle::Single);
+            }
+            "brdrdb" | "brdrtriple" | "brdrtnthtnthlg" => {
+                self.update_border(|border| border.style = BorderStyle::Double);
+            }
+            "brdrdot" => self.update_border(|border| border.style = BorderStyle::Dotted),
+            "brdrdash" | "brdrdashsm" | "brdrdashd" | "brdrdashdd" | "brdrdashdotstr" => {
+                self.update_border(|border| border.style = BorderStyle::Dashed);
+            }
+            "brdrwavy" | "brdrwavydb" | "brdrinset" | "brdroutset" | "brdrframe" => {
+                self.update_border(|border| border.style = BorderStyle::Other);
+            }
+            "clpadl" => self.set_padding_value(true, Side::Left, parameter),
+            "clpadt" => self.set_padding_value(true, Side::Top, parameter),
+            "clpadb" => self.set_padding_value(true, Side::Bottom, parameter),
+            "clpadr" => self.set_padding_value(true, Side::Right, parameter),
+            "clpadfl" => self.set_padding_unit(true, Side::Left, parameter),
+            "clpadft" => self.set_padding_unit(true, Side::Top, parameter),
+            "clpadfb" => self.set_padding_unit(true, Side::Bottom, parameter),
+            "clpadfr" => self.set_padding_unit(true, Side::Right, parameter),
+            "trpaddl" => self.set_padding_value(false, Side::Left, parameter),
+            "trpaddt" => self.set_padding_value(false, Side::Top, parameter),
+            "trpaddb" => self.set_padding_value(false, Side::Bottom, parameter),
+            "trpaddr" => self.set_padding_value(false, Side::Right, parameter),
+            "trpaddfl" => self.set_padding_unit(false, Side::Left, parameter),
+            "trpaddft" => self.set_padding_unit(false, Side::Top, parameter),
+            "trpaddfb" => self.set_padding_unit(false, Side::Bottom, parameter),
+            "trpaddfr" => self.set_padding_unit(false, Side::Right, parameter),
+            "clmgf" | "clmrg" | "clvmgf" | "clvmrg" => self.diagnostic(
+                "unsupported-table-merge",
+                "Merged table cells were laid out as ordinary cells",
+                offset,
+            ),
+            "clvertalt" => {}
+            "clvertalc" | "clvertalb" => self.diagnostic(
+                "unsupported-table-cell-alignment",
+                "Vertical cell alignment was ignored; cell content is top aligned",
+                offset,
+            ),
+            "clcbpat" | "clcfpat" | "clshdng" | "clbgbdiag" | "clbghoriz" | "clbgvert" => self
+                .diagnostic(
+                    "unsupported-table-cell-shading",
+                    "Table cell shading was not drawn",
+                    offset,
+                ),
+            "trhdr" => self.diagnostic(
+                "unsupported-table-header-row",
+                "Header rows are not repeated on continuation pages",
+                offset,
+            ),
+            "trkeep" | "trkeepfollow" => self.diagnostic(
+                "unsupported-table-keep",
+                "Row keep-together was ignored; rows may split across pages",
+                offset,
+            ),
             "ls" | "ilvl" => self.diagnostic(
                 "unsupported-list-semantics",
                 "List numbering used its compatibility text representation",
@@ -1350,19 +1589,334 @@ impl<'a> Parser<'a> {
         if !force && self.paragraph.runs.is_empty() {
             return Ok(());
         }
-        if self.blocks.len() >= MAX_PARAGRAPHS {
+        self.paragraph_count += 1;
+        if self.paragraph_count > MAX_PARAGRAPHS {
             return Err(ParseError::ParagraphLimit);
         }
         let builder = std::mem::replace(
             &mut self.paragraph,
             ParagraphBuilder::new(self.state.paragraph.clone()),
         );
-        self.blocks.push(Block::Paragraph {
+        let block = Block::Paragraph {
             runs: builder.runs,
             style: builder.style.to_model(),
             mark_style: self.state.character.clone(),
-        });
+        };
+        // Between \trowd and \row every paragraph belongs to the cell being collected.
+        if self.row.is_some() {
+            self.cell_blocks.push(block);
+        } else {
+            self.push_body_block(block)?;
+        }
         Ok(())
+    }
+
+    fn push_body_block(&mut self, block: Block) -> Result<(), ParseError> {
+        if self.blocks.len() >= MAX_PARAGRAPHS {
+            return Err(ParseError::ParagraphLimit);
+        }
+        self.blocks.push(block);
+        Ok(())
+    }
+
+    fn row_mut(&mut self) -> &mut RowBuilder {
+        self.row.get_or_insert_with(RowBuilder::default)
+    }
+
+    /// `\trowd` resets the row definition. Content already collected is kept, because some
+    /// writers emit the definition after the cell text and before `\row`.
+    fn begin_row(&mut self) {
+        let contents = self.row.take().map(|row| row.contents).unwrap_or_default();
+        self.row = Some(RowBuilder {
+            contents,
+            ..RowBuilder::default()
+        });
+    }
+
+    fn push_cell_boundary(&mut self, right_twips: i32) {
+        let row = self.row_mut();
+        row.target = None;
+        if row.defs.len() >= MAX_CELLS_PER_ROW {
+            row.overflowed = true;
+            row.pending = CellDef::default();
+            return;
+        }
+        let mut def = std::mem::take(&mut row.pending);
+        def.right_twips = right_twips;
+        row.defs.push(def);
+    }
+
+    fn close_cell(&mut self) {
+        let blocks = std::mem::take(&mut self.cell_blocks);
+        let row = self.row_mut();
+        if row.contents.len() >= MAX_CELLS_PER_ROW {
+            row.overflowed = true;
+            if let Some(last) = row.contents.last_mut() {
+                last.extend(blocks);
+            }
+            return;
+        }
+        row.contents.push(blocks);
+    }
+
+    fn select_border(&mut self, name: &str) {
+        let target = match name {
+            "clbrdrt" => BorderTarget::Cell(Side::Top),
+            "clbrdrl" => BorderTarget::Cell(Side::Left),
+            "clbrdrb" => BorderTarget::Cell(Side::Bottom),
+            "clbrdrr" => BorderTarget::Cell(Side::Right),
+            "trbrdrt" => BorderTarget::RowOuter(Side::Top),
+            "trbrdrl" => BorderTarget::RowOuter(Side::Left),
+            "trbrdrb" => BorderTarget::RowOuter(Side::Bottom),
+            "trbrdrr" => BorderTarget::RowOuter(Side::Right),
+            "trbrdrh" => BorderTarget::RowInnerHorizontal,
+            "trbrdrv" => BorderTarget::RowInnerVertical,
+            _ => BorderTarget::Ignored,
+        };
+        let row = self.row_mut();
+        row.target = Some(target);
+        // Selecting a side declares the border; \brdrnone later clears it again.
+        let slot = match target {
+            BorderTarget::Cell(side) => row.pending.borders.entry(side),
+            BorderTarget::RowOuter(side) => row.borders.entry(side),
+            BorderTarget::RowInnerHorizontal => &mut row.inner_horizontal,
+            BorderTarget::RowInnerVertical => &mut row.inner_vertical,
+            BorderTarget::Ignored => return,
+        };
+        *slot = Some(BorderBuilder::default());
+    }
+
+    fn update_border(&mut self, apply: impl FnOnce(&mut BorderBuilder)) {
+        let Some(row) = self.row.as_mut() else { return };
+        let Some(target) = row.target else { return };
+        let slot = match target {
+            BorderTarget::Cell(side) => row.pending.borders.entry(side),
+            BorderTarget::RowOuter(side) => row.borders.entry(side),
+            BorderTarget::RowInnerHorizontal => &mut row.inner_horizontal,
+            BorderTarget::RowInnerVertical => &mut row.inner_vertical,
+            BorderTarget::Ignored => return,
+        };
+        if let Some(border) = slot.as_mut() {
+            apply(border);
+        }
+    }
+
+    fn set_padding_value(&mut self, cell: bool, side: Side, parameter: Option<i32>) {
+        let row = self.row_mut();
+        let padding = if cell {
+            &mut row.pending.padding
+        } else {
+            &mut row.padding
+        };
+        padding.value[side.index()] = Some(parameter.unwrap_or(0));
+    }
+
+    fn set_padding_unit(&mut self, cell: bool, side: Side, parameter: Option<i32>) {
+        let row = self.row_mut();
+        let padding = if cell {
+            &mut row.pending.padding
+        } else {
+            &mut row.padding
+        };
+        padding.unit[side.index()] = Some(parameter.unwrap_or(0));
+    }
+
+    /// A row that never reaches `\row` still owns real content. Emit it as body paragraphs
+    /// rather than dropping it.
+    fn flush_incomplete_row(&mut self, offset: usize) -> Result<(), ParseError> {
+        if self.row.is_none() {
+            return Ok(());
+        }
+        self.flush_all_text()?;
+        if !self.paragraph.runs.is_empty() {
+            self.finish_paragraph(true)?;
+        }
+        if !self.cell_blocks.is_empty() {
+            self.close_cell();
+        }
+        let Some(row) = self.row.take() else {
+            return Ok(());
+        };
+        let has_content = row.contents.iter().any(|blocks| !blocks.is_empty());
+        if has_content {
+            self.diagnostic(
+                "incomplete-table-row",
+                "Table row ended without \\row; its cells were emitted as paragraphs",
+                offset,
+            );
+        }
+        for blocks in row.contents {
+            for block in blocks {
+                self.push_body_block(block)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn finish_row(&mut self, offset: usize) -> Result<(), ParseError> {
+        self.flush_all_text()?;
+        if self.row.is_none() && self.paragraph.runs.is_empty() {
+            return Ok(());
+        }
+        self.row.get_or_insert_with(RowBuilder::default);
+        if !self.paragraph.runs.is_empty() || !self.cell_blocks.is_empty() {
+            self.finish_paragraph(true)?;
+            self.close_cell();
+        }
+        let Some(row) = self.row.take() else {
+            return Ok(());
+        };
+        self.state.paragraph.in_table = false;
+        if row.overflowed {
+            self.diagnostic(
+                "table-cell-limit",
+                "Table row exceeds 256 cells; the remaining content was merged into the last cell",
+                offset,
+            );
+        }
+        if row.padding.has_rejected_unit()
+            || row.defs.iter().any(|def| def.padding.has_rejected_unit())
+        {
+            self.diagnostic(
+                "unsupported-table-padding-unit",
+                "Cell padding declared in a unit other than twips was ignored",
+                offset,
+            );
+        }
+
+        let mut contents = row.contents;
+        if row.defs.is_empty() {
+            if contents.iter().any(|blocks| !blocks.is_empty()) {
+                self.diagnostic(
+                    "invalid-table-definition",
+                    "Table row has no \\cellx boundary; its cells were emitted as paragraphs",
+                    offset,
+                );
+            }
+            for blocks in contents {
+                for block in blocks {
+                    self.push_body_block(block)?;
+                }
+            }
+            return Ok(());
+        }
+
+        // Pair each boundary with its content, dropping boundaries that do not advance.
+        let mut resolved: Vec<(&CellDef, Vec<Block>)> = Vec::new();
+        let mut carried: Vec<Block> = Vec::new();
+        let mut previous = row.left_twips;
+        let mut dropped = false;
+        for (index, def) in row.defs.iter().enumerate() {
+            let mut blocks = contents
+                .get_mut(index)
+                .map(std::mem::take)
+                .unwrap_or_default();
+            if def.right_twips <= previous {
+                dropped = true;
+                match resolved.last_mut() {
+                    Some((_, last)) => last.append(&mut blocks),
+                    None => carried.append(&mut blocks),
+                }
+                continue;
+            }
+            previous = def.right_twips;
+            let mut merged = std::mem::take(&mut carried);
+            merged.append(&mut blocks);
+            resolved.push((def, merged));
+        }
+        for extra in contents.into_iter().skip(row.defs.len()) {
+            match resolved.last_mut() {
+                Some((_, last)) => last.extend(extra),
+                None => carried.extend(extra),
+            }
+        }
+        if dropped {
+            self.diagnostic(
+                "invalid-table-definition",
+                "Table cell boundaries are not strictly increasing; those cells were merged",
+                offset,
+            );
+        }
+        if resolved.is_empty() {
+            for block in carried {
+                self.push_body_block(block)?;
+            }
+            return Ok(());
+        }
+
+        let gap = twips(row.gap_twips);
+        let last = resolved.len() - 1;
+        let cells = resolved
+            .into_iter()
+            .enumerate()
+            .map(|(index, (def, blocks))| {
+                let border =
+                    |side: Side, fallback: Option<BorderBuilder>| match def.borders.get(side) {
+                        Some(declared) => declared.resolve(),
+                        None => fallback.and_then(BorderBuilder::resolve),
+                    };
+                let horizontal =
+                    |side: Side| border(side, row.borders.get(side).or(row.inner_horizontal));
+                TableCell {
+                    right: twips(def.right_twips),
+                    blocks,
+                    padding: Padding {
+                        left: def
+                            .padding
+                            .resolve(Side::Left)
+                            .or_else(|| row.padding.resolve(Side::Left))
+                            .unwrap_or(gap),
+                        right: def
+                            .padding
+                            .resolve(Side::Right)
+                            .or_else(|| row.padding.resolve(Side::Right))
+                            .unwrap_or(gap),
+                        top: def
+                            .padding
+                            .resolve(Side::Top)
+                            .or_else(|| row.padding.resolve(Side::Top))
+                            .unwrap_or(0.0),
+                        bottom: def
+                            .padding
+                            .resolve(Side::Bottom)
+                            .or_else(|| row.padding.resolve(Side::Bottom))
+                            .unwrap_or(0.0),
+                    },
+                    borders: CellBorders {
+                        top: horizontal(Side::Top),
+                        bottom: horizontal(Side::Bottom),
+                        left: border(
+                            Side::Left,
+                            if index == 0 {
+                                row.borders.get(Side::Left).or(row.inner_vertical)
+                            } else {
+                                row.inner_vertical
+                            },
+                        ),
+                        right: border(
+                            Side::Right,
+                            if index == last {
+                                row.borders.get(Side::Right).or(row.inner_vertical)
+                            } else {
+                                row.inner_vertical
+                            },
+                        ),
+                    },
+                }
+            })
+            .collect();
+
+        let height = match row.height_twips {
+            0 => RowHeight::Auto,
+            value if value > 0 => RowHeight::AtLeast(twips(value)),
+            value => RowHeight::Exact(twips(value.saturating_neg())),
+        };
+        self.push_body_block(Block::Row {
+            cells,
+            left: twips(row.left_twips),
+            height,
+            align: row.align.unwrap_or(RowAlign::Left),
+        })
     }
 
     fn page_break(&mut self) -> Result<(), ParseError> {
@@ -1370,6 +1924,8 @@ impl<'a> Parser<'a> {
         if !self.paragraph.runs.is_empty() {
             self.finish_paragraph(false)?;
         }
+        let offset = self.position;
+        self.flush_incomplete_row(offset)?;
         self.push_page_break()?;
         Ok(())
     }
@@ -1609,14 +2165,19 @@ fn is_known_ignored_control(name: &str) -> bool {
             | "tqc"
             | "tqdec"
             | "ltrrow"
-            | "cellx"
-            | "trleft"
-            | "trgaph"
-            | "trrh"
-            | "clmgf"
-            | "clmrg"
-            | "clvmgf"
-            | "clvmrg"
+            | "lastrow"
+            | "trautofit"
+            | "tblind"
+            | "tblindtype"
+            | "trwWidth"
+            | "trftsWidth"
+            | "trwWidthA"
+            | "trftsWidthA"
+            | "trwWidthB"
+            | "trftsWidthB"
+            | "clwWidth"
+            | "clftsWidth"
+            | "brdrtbl"
     )
 }
 

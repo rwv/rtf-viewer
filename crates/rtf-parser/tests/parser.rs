@@ -23,7 +23,7 @@ fn paragraphs(
 ) -> impl Iterator<Item = (&[Run], &rtf_parser::ParagraphStyle)> {
     model.blocks.iter().filter_map(|block| match block {
         Block::Paragraph { runs, style, .. } => Some((runs.as_slice(), style)),
-        Block::PageBreak => None,
+        Block::PageBreak | Block::Row { .. } => None,
     })
 }
 
@@ -413,16 +413,249 @@ fn list_compatibility_text_is_kept_and_definition_text_is_hidden() {
     );
 }
 
+fn rows(model: &rtf_parser::DocumentModel) -> Vec<&[rtf_parser::TableCell]> {
+    model
+        .blocks
+        .iter()
+        .filter_map(|block| match block {
+            Block::Row { cells, .. } => Some(cells.as_slice()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn cell_text(cell: &rtf_parser::TableCell) -> String {
+    cell.blocks
+        .iter()
+        .filter_map(|block| match block {
+            Block::Paragraph { runs, .. } => Some(paragraph_text(runs)),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
-fn table_controls_flatten_to_stable_separators() {
-    let document = model(br"{\rtf1\trowd\intbl a\cell b\cell\row after\par}");
-    assert_eq!(all_text(&document), "a\tb\nafter");
+fn table_rows_resolve_cell_boundaries_and_content() {
+    let document = model(br"{\rtf1\trowd\cellx1440\cellx2880\intbl a\cell b\cell\row after\par}");
+    let rows = rows(&document);
+    assert_eq!(rows.len(), 1);
+    let cells = rows[0];
+    assert_eq!(cells.len(), 2);
+    assert_eq!(
+        cells.iter().map(|c| c.right).collect::<Vec<_>>(),
+        [72.0, 144.0]
+    );
+    assert_eq!(cell_text(&cells[0]), "a");
+    assert_eq!(cell_text(&cells[1]), "b");
+    // Content after \row leaves the table and returns to the body.
+    assert_eq!(all_text(&document), "after");
+    let Block::Row {
+        left,
+        height,
+        align,
+        ..
+    } = &document.blocks[0]
+    else {
+        panic!("first block should be a row");
+    };
+    assert_eq!(*left, 0.0);
+    assert_eq!(*height, rtf_parser::RowHeight::Auto);
+    assert_eq!(*align, rtf_parser::RowAlign::Left);
+}
+
+#[test]
+fn table_rows_keep_multiple_paragraphs_per_cell() {
+    let document = model(br"{\rtf1\trowd\cellx1440\intbl one\par two\cell\row}");
+    let rows = rows(&document);
+    assert_eq!(cell_text(&rows[0][0]), "one\ntwo");
+    assert_eq!(rows[0][0].blocks.len(), 2);
+}
+
+#[test]
+fn row_geometry_uses_left_offset_gap_height_and_alignment() {
+    let document =
+        model(br"{\rtf1\trowd\trqc\trleft720\trgaph120\trrh-400\cellx2160\intbl x\cell\row}");
+    let Block::Row {
+        cells,
+        left,
+        height,
+        align,
+    } = &document.blocks[0]
+    else {
+        panic!("expected a row");
+    };
+    assert_eq!(*left, 36.0);
+    assert_eq!(*height, rtf_parser::RowHeight::Exact(20.0));
+    assert_eq!(*align, rtf_parser::RowAlign::Center);
+    // \trgaph is the default horizontal padding when no explicit padding is declared.
+    assert_eq!(cells[0].padding.left, 6.0);
+    assert_eq!(cells[0].padding.right, 6.0);
+    assert_eq!(cells[0].padding.top, 0.0);
+
+    let at_least = model(br"{\rtf1\trowd\trrh400\cellx2160\intbl x\cell\row}");
+    let Block::Row { height, .. } = &at_least.blocks[0] else {
+        panic!("expected a row");
+    };
+    assert_eq!(*height, rtf_parser::RowHeight::AtLeast(20.0));
+}
+
+#[test]
+fn cell_padding_prefers_cell_then_row_then_gap() {
+    let document = model(
+        br"{\rtf1\trowd\trgaph100\trpaddfl3\trpaddl200\trpaddft3\trpaddt80
+\clpadfl3\clpadl60\cellx1440\cellx2880\intbl a\cell b\cell\row}",
+    );
+    let Block::Row { cells, .. } = &document.blocks[0] else {
+        panic!("expected a row");
+    };
+    assert_eq!(cells[0].padding.left, 3.0); // \clpadl60 wins over the row value
+    assert_eq!(cells[1].padding.left, 10.0); // \trpaddl200 wins over \trgaph
+    assert_eq!(cells[0].padding.top, 4.0);
+    assert_eq!(cells[0].padding.right, 5.0); // no cell or row value, so \trgaph100
+}
+
+#[test]
+fn cell_padding_in_a_non_twip_unit_is_rejected_with_a_diagnostic() {
+    let document = model(br"{\rtf1\trowd\clpadfl0\clpadl600\trgaph100\cellx1440\intbl a\cell\row}");
+    let Block::Row { cells, .. } = &document.blocks[0] else {
+        panic!("expected a row");
+    };
+    assert_eq!(cells[0].padding.left, 5.0);
     assert!(
         document
             .diagnostics
             .iter()
-            .any(|d| d.code == "unsupported-table")
+            .any(|d| d.code == "unsupported-table-padding-unit")
     );
+}
+
+#[test]
+fn cell_borders_resolve_style_width_colour_and_row_fallbacks() {
+    use rtf_parser::BorderStyle;
+    let document = model(
+        br"{\rtf1{\colortbl;\red255\green0\blue0;}\trowd
+\trbrdrt\brdrs\brdrw20\trbrdrl\brdrs\brdrw20\trbrdrb\brdrs\brdrw20\trbrdrr\brdrs\brdrw20
+\trbrdrv\brdrdot\brdrw10
+\clbrdrt\brdrdb\brdrw40\brdrcf1\clbrdrl\brdrnone\cellx1440\cellx2880\intbl a\cell b\cell\row}",
+    );
+    let Block::Row { cells, .. } = &document.blocks[0] else {
+        panic!("expected a row");
+    };
+    let top = cells[0].borders.top.expect("explicit cell top border");
+    assert_eq!(top.width, 2.0);
+    assert_eq!(top.style, BorderStyle::Double);
+    assert_eq!(top.color, Some(1));
+    // \brdrnone suppresses the row-level fallback for that side.
+    assert!(cells[0].borders.left.is_none());
+    // The outer right edge falls back to the row border, the inner one to \trbrdrv.
+    assert_eq!(cells[1].borders.right.expect("row right border").width, 1.0);
+    let inner = cells[0].borders.right.expect("inner vertical border");
+    assert_eq!(inner.style, BorderStyle::Dotted);
+    assert_eq!(inner.width, 0.5);
+    // Row bottom applies to every cell in the row.
+    assert_eq!(cells[1].borders.bottom.expect("row bottom").width, 1.0);
+}
+
+#[test]
+fn border_widths_are_clamped_to_a_drawable_range() {
+    let document = model(
+        br"{\rtf1\trowd\clbrdrt\brdrs\brdrw1\clbrdrb\brdrs\brdrw100000\cellx1440\intbl a\cell\row}",
+    );
+    let Block::Row { cells, .. } = &document.blocks[0] else {
+        panic!("expected a row");
+    };
+    assert_eq!(cells[0].borders.top.expect("top").width, 0.25);
+    assert_eq!(cells[0].borders.bottom.expect("bottom").width, 12.0);
+}
+
+#[test]
+fn malformed_table_rows_preserve_content_without_geometry() {
+    // No \cellx at all: the cells become ordinary paragraphs.
+    let missing = model(br"{\rtf1\trowd\intbl a\cell b\cell\row after\par}");
+    assert!(rows(&missing).is_empty());
+    assert_eq!(all_text(&missing), "a\nb\nafter");
+    assert!(
+        missing
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "invalid-table-definition")
+    );
+
+    // A boundary that does not advance merges its content into the previous cell.
+    let shrinking =
+        model(br"{\rtf1\trowd\cellx1440\cellx1440\cellx2880\intbl a\cell b\cell c\cell\row}");
+    let merged = rows(&shrinking);
+    assert_eq!(merged[0].len(), 2);
+    assert_eq!(cell_text(&merged[0][0]), "a\nb");
+    assert_eq!(cell_text(&merged[0][1]), "c");
+    assert!(
+        shrinking
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "invalid-table-definition")
+    );
+
+    // A row that never closes still yields its content in reading order.
+    let unterminated = model(br"{\rtf1\trowd\cellx1440\intbl a\cell b\cell}");
+    assert!(rows(&unterminated).is_empty());
+    assert_eq!(all_text(&unterminated), "a\nb");
+    assert!(
+        unterminated
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "incomplete-table-row")
+    );
+}
+
+#[test]
+fn more_cells_than_boundaries_merge_into_the_last_cell() {
+    let document = model(br"{\rtf1\trowd\cellx1440\intbl a\cell b\cell c\cell\row}");
+    let rows = rows(&document);
+    assert_eq!(rows[0].len(), 1);
+    assert_eq!(cell_text(&rows[0][0]), "a\nb\nc");
+}
+
+#[test]
+fn fewer_cells_than_boundaries_keep_the_declared_empty_cells() {
+    let document = model(br"{\rtf1\trowd\cellx1440\cellx2880\intbl a\cell\row}");
+    let rows = rows(&document);
+    assert_eq!(rows[0].len(), 2);
+    assert_eq!(cell_text(&rows[0][1]), "");
+    assert!(rows[0][1].blocks.is_empty());
+}
+
+#[test]
+fn unsupported_table_features_are_diagnosed_without_silent_downgrade() {
+    let document = model(
+        br"{\rtf1\trowd\trhdr\trkeep\clvertalc\clcbpat2\clvmgf\cellx1440\intbl\itap2 a\cell\row
+{\rtf1}\nestcell\nestrow}",
+    );
+    let codes: Vec<&str> = document
+        .diagnostics
+        .iter()
+        .map(|d| d.code.as_str())
+        .collect();
+    for expected in [
+        "unsupported-table-header-row",
+        "unsupported-table-keep",
+        "unsupported-table-cell-alignment",
+        "unsupported-table-cell-shading",
+        "unsupported-table-merge",
+        "unsupported-nested-table",
+    ] {
+        assert!(codes.contains(&expected), "missing {expected} in {codes:?}");
+    }
+}
+
+#[test]
+fn table_definitions_written_after_the_cells_still_apply() {
+    // Some writers emit the row definition between the last \cell and \row.
+    let document = model(br"{\rtf1\intbl a\cell b\cell\trowd\cellx1440\cellx2880\row}");
+    let rows = rows(&document);
+    assert_eq!(rows[0].len(), 2);
+    assert_eq!(cell_text(&rows[0][0]), "a");
+    assert_eq!(cell_text(&rows[0][1]), "b");
 }
 
 #[test]
