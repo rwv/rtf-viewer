@@ -1,7 +1,7 @@
 use rtf_parser::{
-    Block, Border, BorderStyle, CellBorders, Diagnostic, DocumentModel, FontDef, ImageFormat,
-    ImageResource, LineSpacing, Padding, PageGeometry, ParagraphAlign, ParagraphStyle, RowAlign,
-    RowHeight, Run, TableCell, TextStyle,
+    Block, Border, BorderStyle, CellBorders, CellShading, Diagnostic, DocumentModel, FontDef,
+    ImageFormat, ImageResource, LineSpacing, Padding, PageGeometry, ParagraphAlign, ParagraphStyle,
+    RowAlign, RowHeight, Run, TableCell, TextStyle, VerticalAlign,
 };
 use std::env;
 use std::fmt::Write as _;
@@ -29,6 +29,8 @@ fn declarations() -> String {
         Border::decl(&config),
         CellBorders::decl(&config),
         Padding::decl(&config),
+        VerticalAlign::decl(&config),
+        CellShading::decl(&config),
         TableCell::decl(&config),
         Block::decl(&config),
         ImageFormat::decl(&config),

@@ -205,17 +205,9 @@
           "id": "lo-2427-line-height",
           "classification": "font",
           "summary": "Canvas reports a shorter line box than the producer uses for 10 pt Liberation Serif, so every table row is slightly short.",
-          "measured": "Row pitch is 23.50 pt in the engine and 24.15 pt in the reference; the 0.65 pt per row accumulates over eleven rows.",
+          "measured": "Row pitch is 23.50 pt in the engine and 24.15 pt in the reference; the 0.65 pt per row accumulates over eleven rows. The same line box shows up inside a row: centring the single-line cells of the two-line Note row offsets them by 5.50 pt against the reference's 5.75 pt.",
           "status": "open",
           "issue": 20
-        },
-        {
-          "id": "lo-2427-vertical-cell-alignment",
-          "classification": "layout",
-          "summary": "LibreOffice writes \\clvertalc on every cell; the engine top-aligns cell content and reports unsupported-table-cell-alignment.",
-          "measured": "In the two-line Note row the reference places North at y 105.44 and the note at 99.69; the engine places both at 97.75.",
-          "status": "open",
-          "issue": 21
         },
         {
           "id": "lo-2427-cell-content-inset",

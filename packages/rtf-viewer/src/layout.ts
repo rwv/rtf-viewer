@@ -1,4 +1,11 @@
-import type { Block, Diagnostic, DocumentModel, TableCell, TextStyle } from './generated/model.js';
+import type {
+  Block,
+  CellShading,
+  Diagnostic,
+  DocumentModel,
+  TableCell,
+  TextStyle,
+} from './generated/model.js';
 import type {
   DocumentLayout,
   ImageFragment,
@@ -151,8 +158,33 @@ interface FlowContext {
   tick(): Promise<void>;
 }
 
-function colour(model: DocumentModel, index: number | null): string {
-  return (index === null ? null : model.colors[index]) ?? '#000000';
+function colour(model: DocumentModel, index: number | null, fallback = '#000000'): string {
+  return (index === null ? null : model.colors[index]) ?? fallback;
+}
+
+const channels = (value: string): [number, number, number] | undefined => {
+  const match = /^#([0-9a-f]{6})$/i.exec(value);
+  if (!match) return undefined;
+  const number = Number.parseInt(match[1], 16);
+  return [(number >> 16) & 255, (number >> 8) & 255, number & 255];
+};
+
+/**
+ * Resolve a cell fill. `\clshdng` is the percentage of the foreground laid over the background,
+ * so an intensity blends the two; without one, only a declared background fills the cell.
+ */
+function shadingFill(model: DocumentModel, shading: CellShading | undefined): string | undefined {
+  if (!shading) return undefined;
+  const background = colour(model, shading.background, '#ffffff');
+  if (shading.intensity === null) {
+    return shading.background === null ? undefined : background;
+  }
+  const back = channels(background);
+  const front = channels(colour(model, shading.foreground, '#000000'));
+  if (!back || !front) return background;
+  const ratio = Math.min(1, Math.max(0, shading.intensity / 10_000));
+  const mix = (index: number) => Math.round(back[index] + (front[index] - back[index]) * ratio);
+  return `#${[0, 1, 2].map((index) => mix(index).toString(16).padStart(2, '0')).join('')}`;
 }
 
 /**
@@ -381,6 +413,8 @@ interface CellPlan {
   right: number;
   padding: TableCell['padding'];
   borders: TableCell['borders'];
+  verticalAlign: TableCell['verticalAlign'];
+  fill: string | undefined;
   lines: DraftLine[];
   /** Line bottoms measured from the row top, used to choose a page break inside the row. */
   height: number;
@@ -565,6 +599,8 @@ export async function layoutDocument(
         right,
         padding,
         borders: cell.borders,
+        verticalAlign: cell.verticalAlign,
+        fill: shadingFill(model, cell.shading),
         lines: content.lines.map((line) => shift(line, padding.top)),
         height: padding.top + content.height + padding.bottom,
       });
@@ -583,6 +619,25 @@ export async function layoutDocument(
         );
     }
     if (height <= 0) return;
+
+    // A row taller than the page content area is always split, and a fragment has no share of
+    // the row's alignment target, so those keep their content at the top.
+    const split = height > ctx.contentHeight;
+    for (const plan of plans) {
+      if (plan.verticalAlign !== 'center' && plan.verticalAlign !== 'bottom') continue;
+      if (split) {
+        warn(
+          'unsupported-split-row-alignment',
+          'A table row that continues across a page keeps its cell content top aligned.',
+        );
+        continue;
+      }
+      const slack = height - plan.height;
+      if (slack <= EPSILON) continue;
+      const offset = plan.verticalAlign === 'center' ? slack / 2 : slack;
+      for (const line of plan.lines) shift(line, offset);
+      plan.height += offset;
+    }
 
     const stops = [
       ...new Set(plans.flatMap((plan) => plan.lines.map((line) => line.y + line.height))),
@@ -636,6 +691,19 @@ export async function layoutDocument(
   function emitFragment(plans: CellPlan[], from: number, to: number, closing: boolean): void {
     const height = to - from;
     const top = y;
+    // Fills come first for every cell: a stroke centred on a shared boundary reaches into its
+    // neighbour, so a later cell's fill must not paint over an earlier cell's border.
+    for (const plan of plans) {
+      if (plan.fill === undefined) continue;
+      page!.decorations.push({
+        kind: 'rule',
+        x: plan.left,
+        y: top,
+        width: plan.right - plan.left,
+        height,
+        color: plan.fill,
+      });
+    }
     for (const plan of plans) {
       // Lines are ordered, so the fragment consumes a prefix and leaves the rest for the
       // next page. Consuming them keeps a line from being placed twice.

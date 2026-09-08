@@ -238,6 +238,27 @@ pub struct Padding {
     pub bottom: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub enum VerticalAlign {
+    Top,
+    Center,
+    Bottom,
+}
+
+/// Authored cell shading. The fill is resolved at paint time by blending the foreground over
+/// the background by `intensity`; storing the triple keeps the model faithful to the file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct CellShading {
+    pub background: Option<u32>,
+    pub foreground: Option<u32>,
+    /// `\clshdng` in hundredths of a percent, clamped to 0..=10000.
+    pub intensity: Option<u32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase")]
@@ -248,6 +269,14 @@ pub struct TableCell {
     pub blocks: Vec<Block>,
     pub padding: Padding,
     pub borders: CellBorders,
+    /// Absent means the default, top. Optional so that a model written by an older minor
+    /// release still satisfies the public type.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub vertical_align: Option<VerticalAlign>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub shading: Option<CellShading>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

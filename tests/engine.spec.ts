@@ -478,6 +478,74 @@ test('ordinary table fixture keeps column geometry, borders and cross-page conti
   expect(result.marginPixel).toBe(255);
 });
 
+test('table cell fill and vertical alignment fixture matches its stated geometry', async ({
+  page,
+}) => {
+  const result = await page.evaluate(async () => {
+    const { RtfDocument } = window.__rtfTest;
+    await document.fonts.load('12px "Rtf Liberation Serif"');
+    const doc = await RtfDocument.load(
+      await (await fetch('/samples/table-cell-fill-align.rtf')).arrayBuffer(),
+      { fonts: { 'Liberation Serif': 'Rtf Liberation Serif' } },
+    );
+    const layout = doc.getPageLayout(0);
+    const canvas = document.createElement('canvas');
+    await doc.renderPage(canvas, 0, { ppi: 144 });
+    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+    const at = (x: number, y: number) => {
+      const index = (y * canvas.width + x) * 4;
+      return [pixels[index], pixels[index + 1], pixels[index + 2]];
+    };
+    const result = {
+      pages: doc.pageCount,
+      diagnostics: doc.diagnostics.map((diagnostic: any) => diagnostic.code),
+      lines: layout.lines.map((line: any) => [
+        line.fragments.map((fragment: any) => fragment.text ?? '').join(''),
+        line.x,
+        line.y,
+      ]),
+      // A fill covers a whole cell; a border is a thin stroke.
+      fills: layout.decorations
+        .filter((rule: any) => rule.width > 2 && rule.height > 2)
+        .map((rule: any) => [rule.x, rule.y, rule.width, rule.height, rule.color]),
+      // Inside the shaded header cell, clear of the 3 pt padding and the text baseline.
+      headerPixel: at(140, 42),
+      blendPixel: at(60, 118),
+      // Third row, second cell: no fill is declared there.
+      unshadedPixel: at(240, 160),
+    };
+    doc.destroy();
+    return result;
+  });
+  expect(result.pages).toBe(1);
+  expect(result.diagnostics).toEqual([]);
+  expect(result.lines).toEqual([
+    ['Head A', 21, 20],
+    ['Head B', 81, 20],
+    ['Head C', 141, 20],
+    ['Two', 21, 36],
+    ['lines', 21, 48],
+    // Centred and bottom-aligned single lines beside a two-line cell of 28 pt.
+    ['Middle', 81, 42],
+    ['Bottom', 141, 48],
+    // Centred against the exact 24 pt row height rather than the tallest cell.
+    ['Centred', 21, 68],
+    ['Plain', 81, 64],
+    ['Plain', 141, 64],
+    ['After the table.', 18, 86],
+  ]);
+  expect(result.fills).toEqual([
+    [18, 18, 60, 16, '#e6e6e6'],
+    [78, 18, 60, 16, '#e6e6e6'],
+    [138, 18, 60, 16, '#e6e6e6'],
+    // Half of #205493 laid over #e6e6e6.
+    [18, 34, 60, 28, '#839dbd'],
+  ]);
+  expect(result.headerPixel).toEqual([230, 230, 230]);
+  expect(result.blendPixel).toEqual([131, 157, 189]);
+  expect(result.unshadedPixel).toEqual([255, 255, 255]);
+});
+
 test('real LibreOffice table sample keeps producer column geometry and page count', async ({
   page,
 }) => {
@@ -564,7 +632,8 @@ test('real LibreOffice table sample keeps producer column geometry and page coun
   // inner boundary are declared with different widths, so each is centred on its own stroke.
   expect(result.cellWalls).toEqual([35.625, 85.875, 86.125, 127.875, 128.125, 266.625]);
   expect(result.continued).toBeGreaterThan(0);
-  expect(result.tableCodes).toEqual(['unsupported-table-cell-alignment']);
+  // Vertical cell alignment is honoured, so this document reports no table diagnostic at all.
+  expect(result.tableCodes).toEqual([]);
 });
 
 test('real LibreOffice sample matches independent page/text geometry and nearby ink', async ({
