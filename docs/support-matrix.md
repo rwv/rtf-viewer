@@ -42,3 +42,5 @@ Seven original CC0 synthetic fixtures isolate rules. One actual LibreOffice 25.2
 ## Known unsupported/failing classes
 
 Documents whose appearance depends on stylesheet inheritance, real table geometry, generated numbering, headers/footers, section-specific paper settings, WMF/EMF records or complex script layout will differ or show placeholders. These are explicit future milestones. Current supplied synthetic samples render without a known content loss; the real sample produces compatibility diagnostics. See [verification](verification.md) for actual test results and remaining evidence gaps.
+
+Resource lifecycle: browser tests verify that Canvas renders reject superseded layout revisions and discarded export bitmaps are closed after concurrent relayout.

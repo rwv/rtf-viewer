@@ -46,10 +46,11 @@ export class RtfDocument {
     if (!Number.isInteger(index) || index < 0 || index >= this.pageCount) throw new RangeError('Page index is out of range (zero-based).');
     return this.layout.pages[index];
   }
-  private ensureReady(): void {
+  private ensureReady(revision = this.revision): void {
     if (this.closed) throw new Error('The RTF document has been destroyed.');
     if (this.needsRelayout) throw new Error('Fonts changed. Call document.relayout() before rendering.');
     if (this.updating) throw new Error('Document layout is being refreshed.');
+    if (revision !== this.revision) throw new Error('Document layout changed during rendering. Retry with the current layout.');
   }
   private signal(signal?: AbortSignal): AbortSignal {
     return signal ? AbortSignal.any([signal, this.lifetime.signal]) : this.lifetime.signal;
@@ -72,6 +73,7 @@ export class RtfDocument {
   }
   async renderPage(canvas: CanvasTarget, index: number, options: RenderOptions = {}): Promise<void> {
     this.ensureReady();
+    const revision = this.revision;
     const page = this.getPageLayout(index);
     if (activeCanvases.has(canvas)) throw new Error('A render is already active on this canvas.');
     const signal = this.signal(options.signal);
@@ -79,18 +81,22 @@ export class RtfDocument {
     activeCanvases.add(canvas);
     try {
       await paintPage(canvas, page, this.resources.images, { ...options, signal });
-      this.ensureReady();
+      this.ensureReady(revision);
     } finally { activeCanvases.delete(canvas); }
   }
   async renderPageToBitmap(index: number, options: RenderOptions = {}): Promise<ImageBitmap> {
     this.ensureReady();
+    const revision = this.revision;
     const size = pixelSize(this.getPageLayout(index), options);
     const canvas = new OffscreenCanvas(size.width, size.height);
     const signal = this.signal(options.signal);
     try {
       await this.renderPage(canvas, index, { ...options, signal });
       const bitmap = await abortable(createImageBitmap(canvas), signal, (late) => late.close());
-      if (this.closed || signal.aborted || this.needsRelayout) { bitmap.close(); checkAbort(signal); this.ensureReady(); }
+      try {
+        checkAbort(signal);
+        this.ensureReady(revision);
+      } catch (error) { bitmap.close(); throw error; }
       return bitmap;
     } finally { canvas.width = canvas.height = 1; }
   }

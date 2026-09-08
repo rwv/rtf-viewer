@@ -39,3 +39,5 @@ Editing, source-format saving and round-trip fidelity are outside the read-only 
 3. Grow the producer corpus, prioritizing permission-cleared Word/TextEdit files and table/list/image cases. Keep current LibreOffice deltas recorded.
 4. Implement a bounded WMF/EMF adapter after auditing rtf.js's separate renderers and upstream GDI players for record diagnostics. Public imports and bundle costs are already measured; raster placeholders must remain visible until a decoder is validated.
 5. Expand the installed-package gate to additional bundlers and platforms; retain the Chromium/Firefox/WebKit production checks as the browser baseline.
+
+Rendering lifecycle maintenance: Canvas and bitmap completion checks reject superseded layout revisions, with deterministic browser regression coverage.

@@ -347,3 +347,66 @@ test('destroying an owning viewer while loading aborts its pending acquisition',
   });
   expect(result).toEqual({ error: 'AbortError', document: null });
 });
+
+test('bitmap export rejects and closes a result from a superseded layout', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const doc = await window.__rtfTest.RtfDocument.load(new TextEncoder().encode(
+      String.raw`{\rtf1{\fonttbl{\f0 AuditFont;}}\f0\fs24 WWWWWW iiiiii sample paragraph}`,
+    ), { fonts: { AuditFont: 'Delayed Export Font' } });
+    const original = window.createImageBitmap.bind(window);
+    const ready = (() => { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; })();
+    const gate = (() => { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; })();
+    let captured: ImageBitmap | undefined;
+    const intercepted: typeof createImageBitmap = async (source: ImageBitmapSource) => {
+      captured = await original(source);
+      ready.resolve();
+      await gate.promise;
+      return captured;
+    };
+    window.createImageBitmap = intercepted;
+    const face = new FontFace('Delayed Export Font', 'url(/fonts/LiberationSans-Regular.ttf)');
+    try {
+      const before = doc.getPageLayout(0).lines[0].width;
+      const pending = doc.renderPageToBitmap(0).then(
+        bitmap => { bitmap.close(); return 'resolved'; },
+        (error: Error) => error.message,
+      );
+      await ready.promise;
+      document.fonts.add(await face.load());
+      await doc.relayout();
+      const after = doc.getPageLayout(0).lines[0].width;
+      gate.resolve();
+      const error = await pending;
+      return { before, after, error, width: captured?.width, revision: doc.layoutRevision };
+    } finally {
+      gate.resolve();
+      window.createImageBitmap = original;
+      doc.destroy();
+      document.fonts.delete(face);
+    }
+  });
+  expect(result.after).not.toBe(result.before);
+  expect(result.revision).toBe(2);
+  expect(result.error).toContain('Document layout changed during rendering');
+  expect(result.width).toBe(0);
+});
+
+test('canvas rendering rejects when relayout commits before paint completes', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const doc = await window.__rtfTest.RtfDocument.load(new TextEncoder().encode('{\\rtf1 revision}'));
+    const originalTimer = window.setTimeout;
+    let resume!: () => void;
+    try {
+      // Hold the first paint yield until the new geometry has committed.
+      window.setTimeout = ((callback: () => void) => { resume = callback; return 0; }) as typeof window.setTimeout;
+      const pending = doc.renderPage(document.createElement('canvas'), 0).then(
+        () => 'resolved', (error: Error) => error.message,
+      );
+      window.setTimeout = originalTimer;
+      await doc.relayout();
+      resume();
+      return await pending;
+    } finally { window.setTimeout = originalTimer; doc.destroy(); }
+  });
+  expect(result).toContain('Document layout changed during rendering');
+});
