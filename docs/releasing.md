@@ -70,6 +70,8 @@ All later versions publish through GitHub Actions OIDC. The trusted publisher an
 - npm direct publishing: allowed;
 - repository variable: `NPM_TRUSTED_PUBLISHING=true`.
 
+The [v1.0.1 Release run](https://github.com/rwv/rtf-viewer/actions/runs/34192800727) completed the first end-to-end OIDC publication through this environment. Its npm provenance, archive identity and fresh registry consumer results are recorded in [verification](verification.md#v101-github-actions-to-npm).
+
 The `npm trust` configuration command requires npm 11.15 or newer. Maintainers use npm 11.19.1 for publisher configuration without replacing the globally installed CLI:
 
 ```sh
