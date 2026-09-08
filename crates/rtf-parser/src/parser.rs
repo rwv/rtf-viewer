@@ -1,7 +1,7 @@
 use crate::model::{
-    Block, Border, BorderStyle, CellBorders, Diagnostic, DocumentModel, FontDef, ImageFormat,
-    ImageResource, LineSpacing, Padding, PageGeometry, ParagraphAlign, ParagraphStyle, RowAlign,
-    RowHeight, Run, TableCell, TextStyle,
+    Block, Border, BorderStyle, CellBorders, CellShading, Diagnostic, DocumentModel, FontDef,
+    ImageFormat, ImageResource, LineSpacing, Padding, PageGeometry, ParagraphAlign, ParagraphStyle,
+    RowAlign, RowHeight, Run, TableCell, TextStyle, VerticalAlign,
 };
 use encoding_rs::Encoding;
 use std::collections::HashSet;
@@ -267,6 +267,33 @@ impl PaddingBuilder {
     }
 }
 
+/// `\clcbpat`, `\clcfpat` and `\clshdng`, kept separate until the row closes so that a cell
+/// can fall back to the row's declaration.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct ShadingBuilder {
+    background: Option<u32>,
+    foreground: Option<u32>,
+    intensity: Option<u32>,
+}
+
+impl ShadingBuilder {
+    fn is_empty(self) -> bool {
+        self.background.is_none() && self.foreground.is_none() && self.intensity.is_none()
+    }
+
+    fn or(self, fallback: Self) -> Self {
+        if self.is_empty() { fallback } else { self }
+    }
+
+    fn resolve(self) -> Option<CellShading> {
+        (!self.is_empty()).then_some(CellShading {
+            background: self.background,
+            foreground: self.foreground,
+            intensity: self.intensity,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct BorderBuilder {
     present: bool,
@@ -324,6 +351,8 @@ struct CellDef {
     right_twips: i32,
     padding: PaddingBuilder,
     borders: BorderSet,
+    vertical_align: Option<VerticalAlign>,
+    shading: ShadingBuilder,
 }
 
 /// Where the `\brdr*` properties that follow a border selector are stored.
@@ -344,6 +373,7 @@ struct RowBuilder {
     align: Option<RowAlign>,
     padding: PaddingBuilder,
     borders: BorderSet,
+    shading: ShadingBuilder,
     inner_horizontal: Option<BorderBuilder>,
     inner_vertical: Option<BorderBuilder>,
     target: Option<BorderTarget>,
@@ -1058,18 +1088,28 @@ impl<'a> Parser<'a> {
                 "Merged table cells were laid out as ordinary cells",
                 offset,
             ),
-            "clvertalt" => {}
-            "clvertalc" | "clvertalb" => self.diagnostic(
-                "unsupported-table-cell-alignment",
-                "Vertical cell alignment was ignored; cell content is top aligned",
+            "clvertalt" => self.row_mut().pending.vertical_align = Some(VerticalAlign::Top),
+            "clvertalc" => self.row_mut().pending.vertical_align = Some(VerticalAlign::Center),
+            "clvertalb" => self.row_mut().pending.vertical_align = Some(VerticalAlign::Bottom),
+            "clcbpat" => self.row_mut().pending.shading.background = positive_index(parameter),
+            "clcfpat" => self.row_mut().pending.shading.foreground = positive_index(parameter),
+            "clshdng" => {
+                let intensity = shading_intensity(parameter);
+                self.row_mut().pending.shading.intensity = intensity;
+            }
+            "trcbpat" => self.row_mut().shading.background = positive_index(parameter),
+            "trcfpat" => self.row_mut().shading.foreground = positive_index(parameter),
+            "trshdng" => {
+                let intensity = shading_intensity(parameter);
+                self.row_mut().shading.intensity = intensity;
+            }
+            "clbgbdiag" | "clbgfdiag" | "clbghoriz" | "clbgvert" | "clbgcross" | "clbgdcross"
+            | "clbgdkbdiag" | "clbgdkfdiag" | "clbgdkhor" | "clbgdkvert" | "clbgdkcross"
+            | "clbgdkdcross" => self.diagnostic(
+                "approximated-table-cell-pattern",
+                "Table cell background pattern was drawn as its flat shading blend",
                 offset,
             ),
-            "clcbpat" | "clcfpat" | "clshdng" | "clbgbdiag" | "clbghoriz" | "clbgvert" => self
-                .diagnostic(
-                    "unsupported-table-cell-shading",
-                    "Table cell shading was not drawn",
-                    offset,
-                ),
             "trhdr" => self.diagnostic(
                 "unsupported-table-header-row",
                 "Header rows are not repeated on continuation pages",
@@ -1882,6 +1922,8 @@ impl<'a> Parser<'a> {
                             .or_else(|| row.padding.resolve(Side::Bottom))
                             .unwrap_or(0.0),
                     },
+                    vertical_align: def.vertical_align,
+                    shading: def.shading.or(row.shading).resolve(),
                     borders: CellBorders {
                         top: horizontal(Side::Top),
                         bottom: horizontal(Side::Bottom),
@@ -2183,6 +2225,11 @@ fn is_known_ignored_control(name: &str) -> bool {
 
 fn toggle(parameter: Option<i32>) -> bool {
     parameter.unwrap_or(1) != 0
+}
+
+/// `\clshdng` is hundredths of a percent; anything outside 0..=10000 is meaningless.
+fn shading_intensity(parameter: Option<i32>) -> Option<u32> {
+    parameter.map(|value| value.clamp(0, 10_000) as u32)
 }
 
 fn positive_index(parameter: Option<i32>) -> Option<u32> {

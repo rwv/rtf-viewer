@@ -628,7 +628,7 @@ fn fewer_cells_than_boundaries_keep_the_declared_empty_cells() {
 #[test]
 fn unsupported_table_features_are_diagnosed_without_silent_downgrade() {
     let document = model(
-        br"{\rtf1\trowd\trhdr\trkeep\clvertalc\clcbpat2\clvmgf\cellx1440\intbl\itap2 a\cell\row
+        br"{\rtf1\trowd\trhdr\trkeep\clbghoriz\clvmgf\cellx1440\intbl\itap2 a\cell\row
 {\rtf1}\nestcell\nestrow}",
     );
     let codes: Vec<&str> = document
@@ -639,13 +639,62 @@ fn unsupported_table_features_are_diagnosed_without_silent_downgrade() {
     for expected in [
         "unsupported-table-header-row",
         "unsupported-table-keep",
-        "unsupported-table-cell-alignment",
-        "unsupported-table-cell-shading",
+        "approximated-table-cell-pattern",
         "unsupported-table-merge",
         "unsupported-nested-table",
     ] {
         assert!(codes.contains(&expected), "missing {expected} in {codes:?}");
     }
+}
+
+#[test]
+fn cells_resolve_vertical_alignment_and_shading() {
+    use rtf_parser::{CellShading, VerticalAlign};
+    let document = model(
+        br"{\rtf1{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}\trowd
+\trcbpat2\clvertalc\clcbpat1\clcfpat2\clshdng2500\cellx1440
+\clvertalb\cellx2880
+\cellx4320
+\intbl a\cell b\cell c\cell\row}",
+    );
+    let Block::Row { cells, .. } = &document.blocks[0] else {
+        panic!("expected a row");
+    };
+    assert_eq!(cells[0].vertical_align, Some(VerticalAlign::Center));
+    assert_eq!(
+        cells[0].shading,
+        Some(CellShading {
+            background: Some(1),
+            foreground: Some(2),
+            intensity: Some(2500),
+        })
+    );
+    // A cell that declares nothing inherits the row's shading.
+    assert_eq!(cells[1].vertical_align, Some(VerticalAlign::Bottom));
+    assert_eq!(
+        cells[1].shading,
+        Some(CellShading {
+            background: Some(2),
+            foreground: None,
+            intensity: None,
+        })
+    );
+    // Alignment is not inherited from the previous cell; absent means the default, top.
+    assert_eq!(cells[2].vertical_align, None);
+}
+
+#[test]
+fn shading_intensity_is_clamped_and_unshaded_cells_stay_empty() {
+    let document = model(
+        br"{\rtf1\trowd\clshdng99999\cellx1440\clshdng-5\cellx2880\cellx4320
+\intbl a\cell b\cell c\cell\row}",
+    );
+    let Block::Row { cells, .. } = &document.blocks[0] else {
+        panic!("expected a row");
+    };
+    assert_eq!(cells[0].shading.expect("first").intensity, Some(10_000));
+    assert_eq!(cells[1].shading.expect("second").intensity, Some(0));
+    assert_eq!(cells[2].shading, None);
 }
 
 #[test]

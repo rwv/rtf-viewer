@@ -365,3 +365,74 @@ describe('ordinary table geometry', () => {
     expect(layout.pages[0].lines.map(textOf).join('')).toBe('ab');
   });
 });
+
+describe('vertical cell alignment and shading', () => {
+  it('offsets content for centre and bottom alignment inside a taller row', async () => {
+    const row = tableRow([
+      tableCell(['a', 'b', 'c'], 20),
+      tableCell(['x'], 40, { verticalAlign: 'center' }),
+      tableCell(['y'], 60, { verticalAlign: 'bottom' }),
+    ]);
+    const layout = await layoutDocument(model([row], 60, 100), services);
+    // The tallest cell is 30 pt, so the single lines sit at +10 and +20 inside it.
+    expect(layout.pages[0].lines.map((line) => [textOf(line), line.y] as const).slice(-2)).toEqual([
+      ['x', 20],
+      ['y', 30],
+    ]);
+    expect(layout.diagnostics).toEqual([]);
+  });
+  it('leaves geometry unchanged when the cell already fills the row', async () => {
+    const centred = await layoutDocument(
+      model([tableRow([tableCell(['a'], 40, { verticalAlign: 'center' })])], 50, 100),
+      services,
+    );
+    expect(centred.pages[0].lines.map((line) => line.y)).toEqual([10]);
+  });
+  it('keeps a split row top aligned and says so', async () => {
+    const tall = tableCell(['a', 'b', 'c', 'd', 'e'], 20, { verticalAlign: 'bottom' });
+    const layout = await layoutDocument(
+      model([tableRow([tall, tableCell(['z'], 40, { verticalAlign: 'bottom' })])], 50, 30),
+      services,
+    );
+    expect(layout.pages[0].lines.map((line) => [textOf(line), line.y])).toEqual([
+      ['a', 10],
+      ['b', 20],
+      ['c', 30],
+      ['z', 10],
+    ]);
+    expect(layout.diagnostics.map((d) => d.code)).toContain('unsupported-split-row-alignment');
+  });
+  it('fills a shaded cell beneath its content and borders', async () => {
+    const shaded = tableCell(['a'], 20, {
+      shading: { background: 1, foreground: null, intensity: null },
+      borders: { top: rule(1), left: null, bottom: null, right: null },
+    });
+    const layout = await layoutDocument(
+      { ...model([tableRow([shaded])], 50, 100), colors: [null, '#ff0000'] },
+      services,
+    );
+    expect(layout.pages[0].decorations).toEqual([
+      { kind: 'rule', x: 10, y: 10, width: 20, height: 10, color: '#ff0000' },
+      { kind: 'rule', x: 10, y: 9.5, width: 20, height: 1, color: '#000000' },
+    ]);
+  });
+  it('blends the shading intensity between the declared colours', async () => {
+    const fill = async (shading: TableCell['shading']) => {
+      const layout = await layoutDocument(
+        {
+          ...model([tableRow([tableCell(['a'], 20, { shading })])], 50, 100),
+          colors: [null, '#ffffff', '#000000'],
+        },
+        services,
+      );
+      return layout.pages[0].decorations[0]?.color;
+    };
+    expect(await fill({ background: 1, foreground: 2, intensity: 0 })).toBe('#ffffff');
+    expect(await fill({ background: 1, foreground: 2, intensity: 10_000 })).toBe('#000000');
+    expect(await fill({ background: 1, foreground: 2, intensity: 2500 })).toBe('#bfbfbf');
+    // An intensity with no declared colours blends automatic black over automatic white.
+    expect(await fill({ background: null, foreground: null, intensity: 5000 })).toBe('#808080');
+    // A foreground alone has no pattern to apply, so nothing is filled.
+    expect(await fill({ background: null, foreground: 2, intensity: null })).toBeUndefined();
+  });
+});

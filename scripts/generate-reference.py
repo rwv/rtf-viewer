@@ -150,6 +150,50 @@ Page three marker.\par
         + "\n\\pard\\sl-240\\slmult0 After the table.\\par\n}",
     )
 
+    fill_row_definition = (
+        r"\trowd\trgaph0"
+        r"\trpaddfl3\trpaddl60\trpaddfr3\trpaddr60\trpaddft3\trpaddt40\trpaddfb3\trpaddb40"
+        r"\trbrdrt\brdrs\brdrw20\trbrdrl\brdrs\brdrw20"
+        r"\trbrdrb\brdrs\brdrw20\trbrdrr\brdrs\brdrw20"
+        r"\trbrdrh\brdrs\brdrw10\trbrdrv\brdrs\brdrw10"
+    )
+
+    def fill_row(cells: list[str], properties: list[str], extra: str = "") -> str:
+        definition = fill_row_definition + extra
+        for cell_properties, boundary in zip(properties, [1200, 2400, 3600], strict=True):
+            definition += cell_properties + f"\\cellx{boundary}"
+        body = "".join(cell_start + text + "\\cell" for text in cells)
+        return definition + "\n" + body + "\\row"
+
+    write_text(
+        "table-cell-fill-align.rtf",
+        r"""{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\froman\fcharset0 Liberation Serif;}}
+{\colortbl;\red32\green84\blue147;\red230\green230\blue230;}
+\paperw4320\paperh4320\margl360\margr360\margt360\margb360
+\f0\fs24\sl-240\slmult0
+"""
+        + "\n".join(
+            [
+                # The row declares one background and every cell inherits it.
+                fill_row(["Head A", "Head B", "Head C"], ["", "", ""], extra=r"\trcbpat2"),
+                # A half-intensity blend, then centred and bottom-aligned single lines beside
+                # a cell that is two lines tall.
+                fill_row(
+                    [r"Two\line lines", "Middle", "Bottom"],
+                    [r"\clcbpat2\clcfpat1\clshdng5000", r"\clvertalc", r"\clvertalb"],
+                ),
+                # Alignment against an exact row height rather than the tallest cell.
+                fill_row(
+                    ["Centred", "Plain", "Plain"],
+                    [r"\clvertalc", "", ""],
+                    extra=r"\trrh-480",
+                ),
+            ]
+        )
+        + "\n\\pard\\sl-240\\slmult0 After the table.\\par\n}",
+    )
+
     write_text(
         "showcase.rtf",
         """{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1

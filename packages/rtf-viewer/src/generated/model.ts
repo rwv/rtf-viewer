@@ -17,6 +17,12 @@ export type Border = {
 width: number, color: number | null, style: BorderStyle, };
 export type CellBorders = { top: Border | null, left: Border | null, bottom: Border | null, right: Border | null, };
 export type Padding = { left: number, top: number, right: number, bottom: number, };
+export type VerticalAlign = "top" | "center" | "bottom";
+export type CellShading = { background: number | null, foreground: number | null, 
+/**
+ * `\clshdng` in hundredths of a percent, clamped to 0..=10000.
+ */
+intensity: number | null, };
 export type TableCell = { 
 /**
  * Right boundary in points, measured from the left page margin (`\cellx`).
@@ -25,7 +31,12 @@ right: number,
 /**
  * Cell content. Schema version 2 only ever contains paragraphs.
  */
-blocks: Array<Block>, padding: Padding, borders: CellBorders, };
+blocks: Array<Block>, padding: Padding, borders: CellBorders, 
+/**
+ * Absent means the default, top. Optional so that a model written by an older minor
+ * release still satisfies the public type.
+ */
+verticalAlign?: VerticalAlign, shading?: CellShading, };
 export type Block = { "kind": "paragraph", runs: Array<Run>, style: ParagraphStyle, markStyle: TextStyle, } | { "kind": "pageBreak" } | { "kind": "row", cells: Array<TableCell>, 
 /**
  * Left edge of the row in points, measured from the left page margin.

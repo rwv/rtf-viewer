@@ -30,13 +30,13 @@ The issue #21 slice replaces the table text fallback with real row and cell geom
 
 ## M3 boundaries that must be explicit
 
-Merged cells, nested tables, repeated header rows, keep-together rows, cell shading and vertical cell alignment are distinct features from ordinary tables and are not implied by them. Split rows and rows taller than a page are implemented: a row that does not fit continues at a line boundary and each fragment is drawn as a closed box. Lists must model numbering semantics; displaying cached list text is only partial support. Inline PNG/JPEG does not imply WMF/EMF or arbitrary DrawingML shapes. WMF/EMF evaluation must include rtf.js's separate renderers and licenses, including production import behavior and unsupported record visibility.
+Merged cells, nested tables, repeated header rows and keep-together rows are distinct features from ordinary tables and are not implied by them. Split rows and rows taller than a page are implemented: a row that does not fit continues at a line boundary and each fragment is drawn as a closed box. Lists must model numbering semantics; displaying cached list text is only partial support. Inline PNG/JPEG does not imply WMF/EMF or arbitrary DrawingML shapes. WMF/EMF evaluation must include rtf.js's separate renderers and licenses, including production import behavior and unsupported record visibility.
 
 Editing, source-format saving and round-trip fidelity are outside the read-only project. Embedded objects are not executed.
 
 ## Next concrete work
 
-1. M3c continuation: vertical cell alignment and cell shading are the two differences the LibreOffice table corpus entry actually measures, and both are cheap now that row height and cell rectangles exist. Merged cells come next, then nested tables.
+1. M3c continuation: merged cells (`\clmgf`, `\clmrg`, `\clvmgf`, `\clvmrg`), then nested tables. Vertical cell alignment and cell shading are done; the corpus entry's alignment delta is closed.
 2. M3b: parse actual list tables/overrides and resolve numbered markers; retain cached list text as compatibility evidence, not the primary numbering engine.
 3. Close the `lo-2427-line-height` corpus delta. The engine's line box is 0.65 pt shorter per row than the producer's for 10 pt Liberation Serif, which is a measurement question, not a table question, and it moves page breaks in long documents.
 4. Grow the producer corpus, prioritizing permission-cleared Word and TextEdit files and list/image cases. Every new document needs provenance and classified deltas in `fixtures/corpus.json`; see [corpus](corpus.md).
