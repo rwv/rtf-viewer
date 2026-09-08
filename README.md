@@ -77,7 +77,7 @@ pnpm check
 
 ## Releases and contributing
 
-Use Conventional Commit titles for squash-merged PRs: `fix:` for patches, `feat:` for minor releases, and `!` for breaking changes. Release Please maintains the version/changelog PR. Merging that PR creates the tag and release; Actions verifies the package and publishes it through the `npm` GitHub Environment using OIDC. Manual dispatch is reserved for recovery. See the [release procedure](https://github.com/rwv/rtf-viewer/blob/main/docs/releasing.md).
+Use Conventional Commit titles for squash-merged PRs: `fix:` for patches, `feat:` for minor releases, and `!` for breaking changes. Release Please maintains the version/changelog PR. Merging that PR creates the tag and release; Actions verifies the package and publishes it through the `npm` GitHub Environment using OIDC, then verifies the registry download and runs the installed consumer again. Manual dispatch is reserved for recovery. See the [release procedure](https://github.com/rwv/rtf-viewer/blob/main/docs/releasing.md).
 
 Start with the [engineering constraints](https://github.com/rwv/rtf-viewer/blob/main/AGENTS.md), [architecture](https://github.com/rwv/rtf-viewer/blob/main/docs/architecture.md), and [roadmap](https://github.com/rwv/rtf-viewer/blob/main/docs/roadmap.md). Compatibility evidence lives in the [producer report](https://github.com/rwv/rtf-viewer/blob/main/docs/compatibility.md) and [verification record](https://github.com/rwv/rtf-viewer/blob/main/docs/verification.md). Source reuse and licenses are listed in [third-party notices](https://github.com/rwv/rtf-viewer/blob/main/THIRD_PARTY_NOTICES.md).
 

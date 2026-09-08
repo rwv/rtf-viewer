@@ -41,3 +41,5 @@ Editing, source-format saving and round-trip fidelity are outside the read-only 
 5. Expand the installed-package gate to additional bundlers and platforms; retain the Chromium/Firefox/WebKit production checks as the browser baseline.
 
 Rendering lifecycle maintenance: Canvas and bitmap completion checks reject superseded layout revisions, with deterministic browser regression coverage.
+
+Engineering maintenance now includes enforced format/lint and merge gates, separate browser/Worker/Node type environments, and a shared archive/registry consumer. Broader producer fixtures, fuzzing and performance baselines remain follow-up compatibility work; they are not implied by passing release checks.
