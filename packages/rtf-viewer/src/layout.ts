@@ -702,9 +702,12 @@ export async function layoutDocument(
 
   /**
    * Place the row slice [from, to) at the current y. Every fragment is drawn as a closed box,
-   * so a row broken across pages is still bounded above and below on each page. The closing
-   * fragment also places content that overflows an exact row height, which is drawn rather
-   * than clipped.
+   * so a row broken across pages is still bounded above and below on each page. An edge the
+   * page break created is closed with the cell's opposite border where it declares none for
+   * that side: the break is this engine's doing, so leaving its edge open is an artefact
+   * rather than fidelity to the file. A declared border always wins, and a row that fits on
+   * one page gains nothing. The closing fragment also places content that overflows an exact
+   * row height, which is drawn rather than clipped.
    */
   function emitFragment(plans: CellPlan[], from: number, to: number, closing: boolean): void {
     const height = to - from;
@@ -734,10 +737,12 @@ export async function layoutDocument(
       plan.lines = remaining;
       const rules = page!.decorations;
       const width = plan.right - plan.left;
+      const topSide = from > EPSILON ? (plan.borders.top ?? plan.borders.bottom) : plan.borders.top;
+      const bottomSide = closing ? plan.borders.bottom : (plan.borders.bottom ?? plan.borders.top);
       border(rules, model, plan.borders.left, plan.left, top, 0, height);
       border(rules, model, plan.borders.right, plan.right, top, 0, height);
-      border(rules, model, plan.borders.top, plan.left, top, width, 0);
-      border(rules, model, plan.borders.bottom, plan.left, top + height, width, 0);
+      border(rules, model, topSide, plan.left, top, width, 0);
+      border(rules, model, bottomSide, plan.left, top + height, width, 0);
     }
     y = top + height;
   }

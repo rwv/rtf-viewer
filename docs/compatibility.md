@@ -110,22 +110,27 @@ pdftoppm -png -r 96 fixtures/reference/libreoffice-24.2.7.2-table.pdf \
   fixtures/reference/libreoffice-24.2.7.2-table-page
 ```
 
-The document is a twelve-row, three-column bordered table on 288 × 360 pt pages with 36 pt margins, preceded by a heading and followed by one paragraph. The reference PDF is three pages. Cell boundaries are 36, 86.25, 128.25 and 266.25 pt; declared cell padding is 2.25 pt on every side; header-row borders are 0.75 pt and body borders 0.05 pt, which the engine clamps to a visible 0.25 pt.
+The document is a twelve-row, three-column bordered table on 288 × 360 pt pages with 36 pt margins, preceded by a heading and followed by one paragraph. The reference PDF is three pages. Cell boundaries are 36, 86.25, 128.25 and 267 pt; declared cell padding is 2.25 pt on every side; header-row borders are 0.75 pt and body borders 0.05 pt, which the engine clamps to a visible 0.25 pt.
 
 The engine was run against this file through the production-built harness with the bundled Liberation fonts. It produced three pages of 288 × 360 pt, preserved the reading order, and made the same line breaks inside cells: every line it emitted appears unbroken in Poppler's text extraction of the reference, including `A note long enough to wrap` / `inside its own cell.` and `Row 01 continues the table past` / `the first page.` It reports no table diagnostic at all.
 
-| Measurement                        |                            Engine |                           Reference | Delta and classification                                       |
-| ---------------------------------- | --------------------------------: | ----------------------------------: | -------------------------------------------------------------- |
-| Page count                         |                                 3 |                                   3 | equal                                                          |
-| Body cell content left edges       |            38.25 / 88.50 / 130.50 |              38.70 / 88.90 / 130.95 | +0.40 to +0.45 pt producer inset (`layout`)                    |
-| Centred header cell left edges     |          46.125 / 95.75 / 188.125 |              46.55 / 96.30 / 188.10 | same centring, within the same inset (`layout`)                |
-| Single-line row pitch              |                          23.50 pt |                            24.15 pt | -0.65 pt per row from the line box (`font`)                    |
-| Two-line note row, first text line |                          97.75 pt |                            99.69 pt | vertical centring not applied (`layout`)                       |
-| Two-line note row, `North`         |                          97.75 pt |                           105.44 pt | vertical centring not applied (`layout`)                       |
-| Row broken across pages 1 and 2    | Zone 01, after its last text line | Zone 01, between its two text lines | different break offset from the pitch delta (`layout`)         |
-| Rule across the top of page 2      |                              none |                             y 36 pt | collapsed borders leave the edge to the previous row (`paint`) |
+| Measurement                        |                            Engine |                           Reference | Delta and classification                                      |
+| ---------------------------------- | --------------------------------: | ----------------------------------: | ------------------------------------------------------------- |
+| Page count                         |                                 3 |                                   3 | equal                                                         |
+| Body cell content left edges       |            38.25 / 88.50 / 130.50 |              38.70 / 88.90 / 130.95 | +0.40 to +0.45 pt of inset the file never asks for (`layout`) |
+| Centred header cell left edges     |          46.125 / 95.75 / 188.125 |              46.55 / 96.30 / 188.10 | same centring, within the same inset (`layout`)               |
+| Producer's own cell rules          |     35.625 / 85.875 / 127.875 (a) |     36.000 / 86.280 / 128.280 / (b) | boundaries agree within 1/100 mm rounding                     |
+| Single-line row pitch              |                          23.50 pt |                            24.15 pt | -0.65 pt per row from the line box (`font`)                   |
+| Two-line note row, first text line |                          97.75 pt |                            99.69 pt | -1.94 pt from the line box (`font`)                           |
+| Two-line note row, `North`         |                         103.25 pt |                           105.44 pt | centring applied; -2.19 pt from the line box (`font`)         |
+| Row broken across pages 1 and 2    | Zone 01, after its last text line | Zone 01, between its two text lines | different break offset from the pitch delta (`layout`)        |
+| Rule across the top of page 2      |                       y 35.875 pt |                         y 36.000 pt | the break's own edge, now closed (`paint`)                    |
 
-Every remaining delta above is recorded in `fixtures/corpus.json` with its measurement and the issue that tracks it. Vertical cell alignment was an open `layout` delta until issue #25; the producer's centring is now reproduced and only the line-box residual remains inside the row. The pitch delta accumulates: by the end of the table the engine is roughly one row ahead, so page three begins with `Zone 10` rather than `Total`. Page count, column geometry and in-cell line breaking match; vertical alignment, the producer's extra border inset and the continuation rule do not. This comparison does not claim general LibreOffice table fidelity beyond this fixture.
+(a) The engine's strokes are centred on the boundary, so a 0.75 pt border reads 0.375 pt to its left. (b) The producer's rules were read from a 600 DPI rasterisation of reference page 1 and run from the boundary rightwards for 0.72 pt; the fourth is at 267.000 pt against the engine's 266.625.
+
+Every remaining delta above is recorded in `fixtures/corpus.json` with its measurement and the issue that tracks it. Vertical cell alignment was an open `layout` delta until issue #25; the producer's centring is now reproduced and only the line-box residual remains inside the row. The continuation rule was an open `paint` delta until issue #42: a page break is the engine's own doing, so the edge it creates is now closed with the border the cell does declare. The content inset is accepted rather than open, because the measurement rules out every mechanism the file could explain it by — the producer's rules sit on the engine's boundaries, two columns with the same hairline left border differ from each other by 0.05 pt, and the document declares no `\li` or `\fi` anywhere.
+
+The pitch delta accumulates: by the end of the table the engine is roughly one row ahead, so page three begins with `Zone 10` rather than `Total`. Page count, column geometry, in-cell line breaking, vertical alignment and the continuation rule match; the line box and the producer's own inset do not. This comparison does not claim general LibreOffice table fidelity beyond this fixture.
 
 ## Real LibreOffice list artifact
 

@@ -46,7 +46,7 @@ deliberate difference in method, such as comparing a retained line rectangle aga
 | Document                        | Producer             | Exercises                                                            | Open deltas |
 | ------------------------------- | -------------------- | -------------------------------------------------------------------- | ----------- |
 | `libreoffice-25.2.3.2-text`     | LibreOffice 25.2.3.2 | Character styles, indents, spacing, CJK font fallback, line breaking | 0           |
-| `libreoffice-24.2.7.2-table`    | LibreOffice 24.2.7.2 | Table rows, boundaries, padding, borders, cross-page continuation    | 4           |
+| `libreoffice-24.2.7.2-table`    | LibreOffice 24.2.7.2 | Table rows, boundaries, padding, borders, cross-page continuation    | 2           |
 | `libreoffice-24.2.7.2-list`     | LibreOffice 24.2.7.2 | List tables, levels, generated numbering, restarts, hanging indents  | 0           |
 | `libreoffice-24.2.7.2-metafile` | LibreOffice 24.2.7.2 | WMF picture, embedded EMF comment records, embedded DIB blits        | 0           |
 
@@ -80,3 +80,9 @@ change what a fixture can prove.
   including `\cellx65533`. The table fixture therefore declares explicit column widths.
 - LibreOffice writes `\clvertalc` on every exported table cell regardless of the source's
   vertical alignment.
+- LibreOffice 24.2.7.2 insets cell content about 0.42 pt further left than the file asks for. Its
+  own drawn cell rules sit on the boundaries the engine computes, columns declaring the same
+  hairline left border differ from each other by 0.05 pt, and the document declares no `\li` or
+  `\fi` anywhere, so the inset is neither the border, nor an indent, nor a boundary difference.
+  It is recorded as accepted rather than reverse-engineered: a rule fitted to three points that
+  reproduces 0.45 / 0.40 / 0.45 pt would be a coincidence, not a finding.
