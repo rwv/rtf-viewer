@@ -178,8 +178,11 @@ fn push_emf_dib(
     ) else {
         return;
     };
-    let info = record.get(info_offset as usize..(info_offset + info_size) as usize);
-    let bits = record.get(bits_offset as usize..(bits_offset + bits_size) as usize);
+    // Offsets and sizes come straight out of the file, so the ends are computed without
+    // trusting them to fit: a crafted record must fail the lookup, not the addition.
+    let end = |offset: u32, size: u32| (offset as usize).checked_add(size as usize);
+    let info = end(info_offset, info_size).and_then(|end| record.get(info_offset as usize..end));
+    let bits = end(bits_offset, bits_size).and_then(|end| record.get(bits_offset as usize..end));
     if let (Some(info), Some(bits)) = (info, bits)
         && !info.is_empty()
         && !bits.is_empty()

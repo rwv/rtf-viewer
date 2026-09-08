@@ -1066,6 +1066,30 @@ fn an_oversized_metafile_bitmap_is_refused_rather_than_allocated() {
 }
 
 #[test]
+fn a_blit_whose_offsets_do_not_fit_is_refused_rather_than_overflowing() {
+    // offBitsSrc and cbBitsSrc that sum past u32 must fail the lookup, not the addition.
+    let mut emf = Vec::new();
+    emf.extend_from_slice(&1u32.to_le_bytes());
+    emf.extend_from_slice(&88u32.to_le_bytes());
+    emf.resize(88, 0);
+    emf.extend_from_slice(&81u32.to_le_bytes());
+    emf.extend_from_slice(&120u32.to_le_bytes());
+    emf.resize(88 + 48, 0);
+    for value in [u32::MAX, 64u32, u32::MAX - 8, 64u32] {
+        emf.extend_from_slice(&value.to_le_bytes());
+    }
+    emf.resize(88 + 120, 0);
+    let document = document_with_metafile(&emf);
+    assert!(raster_of(&document).is_none());
+    assert!(
+        document
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "unsupported-vector-image")
+    );
+}
+
+#[test]
 fn arbitrary_bounded_byte_streams_never_panic() {
     let mut seed = 0x9e37_79b9_u32;
     for _ in 0..256 {
