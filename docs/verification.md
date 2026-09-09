@@ -23,7 +23,7 @@ container, release build, median of five parses per shape:
 The budgets are 300 ms and 48 MiB per shape, roughly fifteen times the observed latency and two
 and a half times the observed peak, so a real regression trips them and machine noise does not.
 These are parser numbers on one machine; they are a regression baseline, not a promise about any
-other hardware. Layout and paint latency remain unmeasured.
+other hardware. The separate rendering baseline follows.
 
 Layout and paint latency were measured with `pnpm bench:render` on the same container, Chromium,
 production build, median of five runs per shape after one warm run:
@@ -49,10 +49,42 @@ timers rather than in layout. Yields are now counted once for the whole flow, an
 lays out in 586 ms. A deterministic test in the fast gate asserts the count: 240 blocks yield seven
 times, where the defect yielded 182.
 
-The primitive is still a clamped timer rather than an unclamped task. At about four milliseconds a
-yield, the counts above put roughly 250 to 500 ms of each shape's layout in timers rather than in
-work, which would make it the largest single cost left. That arithmetic is an estimate, not a
-measurement, and confirming or correcting it is issue #41 rather than something folded in here.
+### Unclamped task yielding (issue #41)
+
+A fresh before/after run on Linux 6.17.4-2-pve, Node 24.13.0, pnpm 10.33.0 and Playwright
+1.63.0 Chromium 153.0.8010.12 compares main commit `1589a27` with only the task primitive changed.
+Both runs use `pnpm build && pnpm bench:render`, one worker, and the existing median of five runs
+after one warm run. They use the same installed fonts and default font mapping, without fetching
+fonts; fontconfig's generic serif and sans-serif resolve to Noto Serif and Noto Sans here. These
+page counts differ from the older container's baseline above, so the two environments' absolute
+times and pagination should not be compared.
+
+| Shape                    | Pages before/after | Fragments before/after | Load ms before → after | Layout ms before → after | Paint ms before → after |
+| ------------------------ | -----------------: | ---------------------: | ---------------------: | -----------------------: | ----------------------: |
+| prose, 2000 paragraphs   |          103 / 103 |        84,000 / 84,000 |          476.2 → 214.4 |            485.3 → 161.6 |               9.8 → 2.2 |
+| tables, 1000 rows        |            26 / 26 |        15,000 / 15,000 |          683.2 → 140.9 |             590.2 → 56.3 |              18.0 → 1.8 |
+| list, 3000 items         |            77 / 77 |        45,000 / 45,000 |          553.5 → 190.9 |             482.2 → 96.8 |               9.0 → 1.8 |
+| unicode, 2000 paragraphs |            38 / 38 |        14,000 / 14,000 |           326.4 → 89.8 |             298.4 → 39.9 |               8.7 → 0.8 |
+
+The change prefers `scheduler.yield()`, used in this Chromium run, then a MessageChannel task,
+then a timer. Work cadence, benchmark recipes and budgets are unchanged. Layout saves 323.7,
+533.9, 385.4 and 258.5 ms respectively, or 67–90%. This supports issue #41's hypothesis that
+clamped timers dominated these layouts. It is an end-to-end measurement of replacing the
+primitive, not a direct sum of time spent waiting: the estimated 250–500 ms was approximate,
+and scheduling and runtime variation also contribute. The JSON output remains available through
+`pnpm bench:render` at `artifacts/render-benchmark.json`; these paired results are recorded here
+because that artifact is overwritten by each run. No Firefox or WebKit speedup is claimed.
+
+The cadence test counts `nextTask()` calls, independent of platform APIs. Scheduling tests verify
+preference, scheduler rejection, task (rather than microtask) continuation, concurrent channel
+completion and closure of both ports, plus the final timer fallback. The mid-paint browser race
+supplies a controllable scheduler, commits relayout while its continuation is held, and requires
+the old render to reject when resumed. It no longer intercepts `setTimeout`.
+
+Validation on the pinned Node and Rust toolchains passes the shared gate: format and both lint
+checks, Rust fmt/clippy, 62 parser and 2 mutation tests, generated contracts, 60 unit/adapter/corpus
+tests, production build and all TypeScript configurations, 78 browser cases across Chromium,
+Firefox and WebKit, and the installed-tarball consumer. No reference snapshots were changed.
 
 **The Worker decision this measurement was for**: laying out a 87-page document costs 402 ms and
 painting a page costs 10 ms, both in yield-interrupted slices rather than one block. Moving layout
