@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { layoutDocument } from './layout.js';
+import * as lifecycle from './lifecycle.js';
 import { pixelSize } from './paint.js';
 import type {
   Block,
@@ -549,19 +550,18 @@ describe('a row split across a page', () => {
 describe('cooperative yielding', () => {
   it('yields on the work done rather than once per table cell', async () => {
     // Sixty three-cell rows are 240 blocks: 60 rows plus 180 cell paragraphs. A yield every 32
-    // blocks is seven of them. Yielding once per cell instead would be 240, and each
-    // yield costs a clamped timer, which is what made a large table slower to lay out than to
-    // parse by an order of magnitude.
+    // blocks is seven of them. Count the scheduling boundary independently of its platform
+    // implementation so changing the task primitive cannot hide a cadence regression.
     const rows = Array.from({ length: 60 }, () =>
       tableRow([tableCell(['a'], 20), tableCell(['b'], 40), tableCell(['c'], 60)]),
     );
-    const timer = vi.spyOn(globalThis, 'setTimeout');
+    const yieldTask = vi.spyOn(lifecycle, 'nextTask');
     try {
       const layout = await layoutDocument(model(rows, 60, 4000), services);
       expect(layout.pages[0].lines.length).toBe(180);
-      expect(timer).toHaveBeenCalledTimes(Math.floor((60 + 180) / 32));
+      expect(yieldTask).toHaveBeenCalledTimes(Math.floor((60 + 180) / 32));
     } finally {
-      timer.mockRestore();
+      yieldTask.mockRestore();
     }
   });
   it('abandons a large layout promptly instead of finishing it first', async () => {

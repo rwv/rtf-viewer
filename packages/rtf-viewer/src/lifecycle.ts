@@ -5,6 +5,26 @@ export function checkAbort(signal?: AbortSignal): void {
   if (signal?.aborted) throw abortError();
 }
 export function nextTask(): Promise<void> {
+  const scheduler = (
+    globalThis as typeof globalThis & {
+      scheduler?: { yield?: () => Promise<void> };
+    }
+  ).scheduler;
+  if (typeof scheduler?.yield === 'function') return scheduler.yield();
+  if (typeof MessageChannel === 'function') {
+    return new Promise((resolve) => {
+      // Each continuation owns its ports. Close them before resuming, including when the
+      // caller was aborted while waiting; no document or module retains an idle channel.
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => {
+        channel.port1.onmessage = null;
+        channel.port1.close();
+        channel.port2.close();
+        resolve();
+      };
+      channel.port2.postMessage(null);
+    });
+  }
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 /** Observe cancellation promptly and dispose any successful late resource. */

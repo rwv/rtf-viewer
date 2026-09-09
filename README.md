@@ -37,6 +37,8 @@ try {
 
 An `AbortSignal` cancels loading or rendering. Destroying a document releases its resources and is safe to repeat. Returned bitmaps and supplied canvases belong to the caller. Prepared fonts must be available before layout; relevant font changes require an explicit `relayout()` and refresh of the caller's page cache. Known unrelated font completions are ignored. Renders whose layout is superseded before completion reject and can be retried. See the [API reference](https://github.com/rwv/rtf-viewer/blob/main/docs/api.md) for font mapping, cancellation, concurrent rendering, viewer ownership, and asset URL overrides.
 
+Layout and paint yield through `scheduler.yield()` when available, then `MessageChannel`, with timers as the last fallback. This reduces waiting between work slices while preserving cancellation and pagination; see the [performance measurements](https://github.com/rwv/rtf-viewer/blob/main/docs/verification.md#unclamped-task-yielding-issue-41).
+
 ## Public API and versioning
 
 | Import                | Purpose                                                                             |

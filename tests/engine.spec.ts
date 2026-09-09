@@ -1156,24 +1156,35 @@ test('canvas rendering rejects when relayout commits before paint completes', as
     const doc = await window.__rtfTest.RtfDocument.load(
       new TextEncoder().encode('{\\rtf1 revision}'),
     );
-    const originalTimer = window.setTimeout;
+    const originalScheduler = Object.getOwnPropertyDescriptor(window, 'scheduler');
+    const restoreScheduler = () => {
+      if (originalScheduler) Object.defineProperty(window, 'scheduler', originalScheduler);
+      else Reflect.deleteProperty(window, 'scheduler');
+    };
     let resume!: () => void;
     try {
-      // Hold the first paint yield until the new geometry has committed.
-      window.setTimeout = ((callback: () => void) => {
-        resume = callback;
-        return 0;
-      }) as typeof window.setTimeout;
+      // Supply a controllable scheduler in every browser, independent of native timer or
+      // MessageChannel support. Hold the first paint yield until new geometry has committed.
+      Object.defineProperty(window, 'scheduler', {
+        configurable: true,
+        value: {
+          yield: () =>
+            new Promise<void>((resolve) => {
+              resume = resolve;
+            }),
+        },
+      });
       const pending = doc.renderPage(document.createElement('canvas'), 0).then(
         () => 'resolved',
         (error: Error) => error.message,
       );
-      window.setTimeout = originalTimer;
+      restoreScheduler();
+      if (!resume) throw new Error('Paint did not reach the scheduling boundary.');
       await doc.relayout();
       resume();
       return await pending;
     } finally {
-      window.setTimeout = originalTimer;
+      restoreScheduler();
       doc.destroy();
     }
   });
