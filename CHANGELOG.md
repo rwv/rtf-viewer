@@ -2,6 +2,25 @@
 
 This project follows [Semantic Versioning](https://semver.org/). RTF feature coverage can grow in compatible minor releases; the public model and layout evolution rules are documented in the [README](https://github.com/rwv/rtf-viewer#public-api-and-versioning).
 
+## [1.3.0](https://github.com/rwv/rtf-viewer/compare/v1.2.0...v1.3.0) (2026-09-09)
+
+
+### Features
+
+* draw the bitmap a rasterising producer embeds in a metafile ([#36](https://github.com/rwv/rtf-viewer/issues/36)) ([24ba728](https://github.com/rwv/rtf-viewer/commit/24ba7283d87c15076e5564412044221c7e6e0065)), closes [#35](https://github.com/rwv/rtf-viewer/issues/35)
+* measure the line box once per face, and let the caller declare it ([#45](https://github.com/rwv/rtf-viewer/issues/45)) ([1589a27](https://github.com/rwv/rtf-viewer/commit/1589a2756ef43c1e9c29a5880d99eb95379888e3)), closes [#44](https://github.com/rwv/rtf-viewer/issues/44)
+
+
+### Bug Fixes
+
+* close the edge a page break creates in a split table row ([#43](https://github.com/rwv/rtf-viewer/issues/43)) ([32f172f](https://github.com/rwv/rtf-viewer/commit/32f172fd856e946dcaae2e02bd3dd8b15b3e0a85)), closes [#42](https://github.com/rwv/rtf-viewer/issues/42)
+
+
+### Performance Improvements
+
+* use unclamped tasks for cooperative yielding ([#46](https://github.com/rwv/rtf-viewer/issues/46)) ([6a09564](https://github.com/rwv/rtf-viewer/commit/6a095643d6d2e96d2b1c0bd042687cb08387fead))
+* yield on the work done rather than once per table cell ([#40](https://github.com/rwv/rtf-viewer/issues/40)) ([1ae4965](https://github.com/rwv/rtf-viewer/commit/1ae496523548f487d8487b48383968bf0ef3c434)), closes [#39](https://github.com/rwv/rtf-viewer/issues/39)
+
 ## [1.2.0](https://github.com/rwv/rtf-viewer/compare/v1.1.0...v1.2.0) (2026-09-08)
 
 
