@@ -26,11 +26,13 @@ To verify a downloaded package archive, use its release version in place of the 
 
 ```sh
 gh release download v1.4.0 --pattern rtf-viewer-1.4.0.tgz
+source_sha=$(gh api repos/rwv/rtf-viewer/commits/v1.4.0 --jq .sha)
 gh attestation verify rtf-viewer-1.4.0.tgz --repo rwv/rtf-viewer \
-  --signer-workflow rwv/rtf-viewer/.github/workflows/release.yml
+  --signer-workflow rwv/rtf-viewer/.github/workflows/release.yml \
+  --source-digest "$source_sha"
 ```
 
-The workflow also requires the attestation's source commit to equal the release tag's commit. The GitHub attestation covers direct downloads of the archive; npm's trusted publisher separately attests the registry package. These statements establish origin, while the native, browser, and package tests establish the checked behavior.
+The automatic release run uses the `main` ref, so the release tag's commit is the stable source check. The workflow requires that same commit before publication. The GitHub attestation covers direct downloads of the archive; npm's trusted publisher separately attests the registry package. These statements establish origin, while the native, browser, and package tests establish the checked behavior.
 
 Earlier releases keep their original asset names and reports. The versioned archive and attestation apply to releases created after this workflow change.
 
