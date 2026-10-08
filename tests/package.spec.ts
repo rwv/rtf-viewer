@@ -31,7 +31,7 @@ test('the npm package works in an isolated production application', async ({ pag
   // Remove stale passing evidence before packing or running any assertions.
   for (const file of registryVersion
     ? ['registry-verification.json']
-    : ['SHA256SUMS', 'package-manifest.json', 'package-verification.json']) {
+    : ['package-manifest.json', 'package-verification.json']) {
     await rm(join(artifacts, file), { force: true });
   }
   const temp = await mkdtemp(join(tmpdir(), 'rtf-viewer-consumer-'));
@@ -247,7 +247,6 @@ test('the npm package works in an isolated production application', async ({ pag
         join(artifacts, 'package-verification.json'),
         JSON.stringify(report, null, 2) + '\n',
       );
-      await writeFile(join(artifacts, 'SHA256SUMS'), `${sha256}  ${filename}\n`);
     }
   } finally {
     await page.goto('about:blank').catch(() => undefined);

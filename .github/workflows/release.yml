@@ -71,7 +71,6 @@ jobs:
       - run: pnpm check
       - name: Validate the tested package evidence
         run: |
-          (cd artifacts && sha256sum --check SHA256SUMS)
           archive="artifacts/rtf-viewer-${{ steps.release.outputs.version }}.tgz"
           archive_sha=$(sha256sum "$archive" | cut -d' ' -f1)
           test "$(jq -er .sha256 artifacts/package-manifest.json)" = "$archive_sha"
@@ -93,7 +92,6 @@ jobs:
           retention-days: 30
           path: |
             artifacts/rtf-viewer-${{ steps.release.outputs.version }}.tgz
-            artifacts/SHA256SUMS
             artifacts/package-manifest.json
             artifacts/package-verification.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -135,7 +133,6 @@ jobs:
           RELEASE_TAG: ${{ needs.verify.outputs.tag }}
           RELEASE_VERSION: ${{ needs.verify.outputs.version }}
         run: |
-          (cd artifacts && sha256sum --check SHA256SUMS)
           archive="artifacts/rtf-viewer-${RELEASE_VERSION}.tgz"
           expected=$(jq -er .integrity artifacts/package-manifest.json)
           actual="sha512-$(openssl dgst -sha512 -binary "$archive" | openssl base64 -A)"
