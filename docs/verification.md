@@ -102,7 +102,7 @@ demonstrated libFuzzer run then managed 196,354 executions in 61 seconds with no
 
 Negative probes confirmed that focused Playwright/Vitest tests, floating Promises, and Node globals in browser library code are rejected. Actionlint passes. The formatting-only commit preserved canonical emitted JavaScript for all 22 affected TypeScript files.
 
-The shared registry consumer was exercised against the existing 1.0.3 package: its downloaded SHA-256 matched `6d1804cdd3735744efa8c7857cc7ccf1bc10e42cf7f59aa258ddff45f4f7dd9b`, npm signature/provenance verification passed, and declaration compilation plus production rendering passed. Each subsequent release records its own registry outcome in `registry-verification.json`; this prototype does not claim a future package has already passed.
+The shared registry consumer was exercised against the existing 1.0.3 package: its downloaded SHA-256 matched `6d1804cdd3735744efa8c7857cc7ccf1bc10e42cf7f59aa258ddff45f4f7dd9b`, npm signature/provenance verification passed, and declaration compilation plus production rendering passed. Existing releases that carry a `registry-verification.json` asset retain it. Later runs retain that report as an Actions artifact; this prototype does not claim a future package has already passed.
 
 ## Version 1.0.3 source checks
 
@@ -167,4 +167,4 @@ The [1.0.3 release](https://github.com/rwv/rtf-viewer/releases/tag/v1.0.3) carri
 
 [`v1.0.1`](https://github.com/rwv/rtf-viewer/releases/tag/v1.0.1) was published by [Actions run 34192800727](https://github.com/rwv/rtf-viewer/actions/runs/34192800727) through npm OIDC and GitHub Environment `npm`. The registry and GitHub archives were identical: 222,636 bytes, SHA-256 `da5fa55f07e40e252e3929097aed0818ef7017610b18e09752ddf02fecd75fdf`. Registry provenance matched the workflow, tag and commit; a separate registry-installed consumer passed the production build and browser checks.
 
-The [historical verification record](https://github.com/rwv/rtf-viewer/blob/f765968c3e01cffa7aa40214d1cfda6a0194cb60/docs/verification.md) retains earlier commands, measurements and bootstrap details. These historical package sizes are not promises about later builds. GitHub release assets and their associated reports are the authoritative evidence for each published version.
+The [historical verification record](https://github.com/rwv/rtf-viewer/blob/f765968c3e01cffa7aa40214d1cfda6a0194cb60/docs/verification.md) retains earlier commands, measurements and bootstrap details. These historical package sizes are not promises about later builds. Existing verification reports remain on their GitHub Releases; later releases retain short-lived Actions reports, while the published package is identified by its GitHub build attestation and npm provenance.

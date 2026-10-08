@@ -23,7 +23,7 @@
     "test:browser": "playwright test",
     "test:package": "playwright test --config playwright.package.config.ts",
     "check": "pnpm format:check && pnpm lint && pnpm check:rust && pnpm check:contract && pnpm test && pnpm build && pnpm typecheck && pnpm lint:types && pnpm test:browser && pnpm test:package",
-    "pack:lib": "pnpm --dir packages/rtf-viewer pack --out ../../artifacts/rtf-viewer.tgz",
+    "pack:lib": "pnpm --dir packages/rtf-viewer pack --out ../../artifacts/%s-%v.tgz",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "oxlint --max-warnings 0",

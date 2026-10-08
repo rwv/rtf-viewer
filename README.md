@@ -10,7 +10,7 @@ The 1.x release supports Unicode and common Windows/East Asian codepages, direct
 npm install rtf-viewer
 ```
 
-The package includes JavaScript, TypeScript declarations, the parser Worker, and WASM. npm consumers need neither Rust nor a source checkout. Tested archives and checksums are also available from [GitHub Releases](https://github.com/rwv/rtf-viewer/releases).
+The package includes JavaScript, TypeScript declarations, the parser Worker, and WASM. npm consumers need neither Rust nor a source checkout. [GitHub Releases](https://github.com/rwv/rtf-viewer/releases) also provide tested package archives. Releases from the current workflow use versioned filenames and [GitHub build attestations](https://github.com/rwv/rtf-viewer/blob/main/docs/releasing.md#create-a-release) for direct downloads.
 
 ## Render a document
 

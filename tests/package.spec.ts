@@ -18,12 +18,12 @@ const registry = 'https://registry.npmjs.org/';
 
 test('the npm package works in an isolated production application', async ({ page }) => {
   const artifacts = resolve('artifacts');
-  const filename = 'rtf-viewer.tgz';
-  let archive = join(artifacts, filename);
   const pkg = JSON.parse(await readFile('packages/rtf-viewer/package.json', 'utf8')) as {
     name: string;
     version: string;
   };
+  const filename = `${pkg.name}-${pkg.version}.tgz`;
+  let archive = join(artifacts, filename);
   const tools = JSON.parse(await readFile('package.json', 'utf8')) as {
     devDependencies: Record<string, string>;
   };
